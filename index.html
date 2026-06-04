@@ -1224,21 +1224,21 @@
         <div class="pref-group">
           <span class="pref-label">Source</span>
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value)">
-            <option value="vidking" selected>VidKing</option>
-            <option value="vidsrc">Subs+</option>
+            <option value="vidsrc" selected>Subs+</option>
+            <option value="vidking">VidKing</option>
           </select>
         </div>
         <div class="pref-group">
           <span class="pref-label">Subs</span>
-          <select class="pref-select" id="subtitleLang" onchange="setSubtitleLang(this.value)" disabled>
-            <option value="en" selected>English</option>
+          <select class="pref-select" id="subtitleLang" onchange="setSubtitleLang(this.value)">
+            <option value="fa" selected>Persian / Farsi</option>
+            <option value="en">English</option>
             <option value="ar">Arabic</option>
             <option value="es">Spanish</option>
             <option value="fr">French</option>
             <option value="de">German</option>
             <option value="pt">Portuguese</option>
             <option value="tr">Turkish</option>
-            <option value="fa">Persian</option>
             <option value="ko">Korean</option>
           </select>
         </div>
@@ -1522,7 +1522,7 @@
 </div>
 
 <script>
-var currentType = 'movie', currentColor = '0dcaf0', currentPlayerSource = 'vidking', currentSubtitleLang = 'en', searchTimeout = null;
+var currentType = 'movie', currentColor = '0dcaf0', currentPlayerSource = 'vidsrc', currentSubtitleLang = 'fa', searchTimeout = null;
 
 var GRAD = [
   ['#1a1a2e','#16213e'],['#0f3460','#533483'],['#2d1b33','#1a0a0a'],['#0a2744','#1a4a7a'],
