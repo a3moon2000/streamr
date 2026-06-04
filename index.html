@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Streamr</title>
   <meta name="description" content="Stream movies and TV shows instantly.">
-  <meta name="theme-color" content="#1a1f29">
+  <meta name="theme-color" content="#1b2530">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
@@ -18,17 +18,17 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg:       oklch(32% 0.018 255);
-      --surface:  oklch(38% 0.018 255);
-      --surface2: oklch(44% 0.018 255);
-      --surface3: oklch(50% 0.018 255);
-      --border:   oklch(46% 0.012 255);
-      --accent:   oklch(74% 0.19 55);
-      --accent2:  oklch(68% 0.16 55);
-      --accent-bg:oklch(74% 0.19 55 / 0.16);
-      --text:     oklch(96% 0.004 255);
-      --text2:    oklch(84% 0.004 255);
-      --muted:    oklch(66% 0.004 255);
+      --bg:       oklch(28% 0.022 245);
+      --surface:  oklch(34% 0.022 245);
+      --surface2: oklch(40% 0.022 245);
+      --surface3: oklch(47% 0.022 245);
+      --border:   oklch(44% 0.016 245);
+      --accent:   oklch(80% 0.13 200);
+      --accent2:  oklch(72% 0.13 200);
+      --accent-bg:oklch(80% 0.13 200 / 0.16);
+      --text:     oklch(97% 0.005 230);
+      --text2:    oklch(85% 0.006 230);
+      --muted:    oklch(67% 0.008 230);
       --sans:     'DM Sans', system-ui, sans-serif;
       --serif:    'Instrument Serif', Georgia, serif;
       --mono:     'JetBrains Mono', monospace;
@@ -55,18 +55,23 @@
       display: flex; align-items: center; gap: 16px;
     }
     .logo {
-      font-size: 18px; font-weight: 700; letter-spacing: -0.5px;
-      color: var(--accent); cursor: pointer;
-      display: flex; align-items: center; gap: 8px;
-      transition: opacity 150ms;
+      font-size: 19px; font-weight: 700; letter-spacing: -0.6px;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 9px;
+      transition: transform 200ms;
     }
-    .logo:hover { opacity: 0.8; }
+    .logo:hover { transform: translateY(-1px); }
+    .logo:hover .logo-icon { box-shadow: 0 3px 16px oklch(80% 0.13 200 / 0.55), inset 0 1px 0 oklch(96% 0.05 200 / 0.6); }
+    .logo-text { color: var(--text); }
+    .logo-text .logo-r { color: var(--accent); }
     .logo-icon {
-      width: 28px; height: 28px; border-radius: 7px;
-      background: var(--accent);
+      width: 30px; height: 30px; border-radius: 9px;
+      background: linear-gradient(145deg, oklch(86% 0.11 190), oklch(66% 0.14 218));
       display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 10px oklch(80% 0.13 200 / 0.35), inset 0 1px 0 oklch(96% 0.05 200 / 0.5);
+      transition: box-shadow 200ms;
     }
-    .logo-icon svg { width: 14px; height: 14px; fill: oklch(10% 0 0); }
+    .logo-icon svg { width: 16px; height: 16px; fill: oklch(24% 0.05 235); margin-left: 1px; }
     header .spacer { flex: 1; }
 
     /* Search in header */
@@ -826,8 +831,8 @@
 <!-- Header -->
 <header>
   <div class="logo" onclick="goHome()">
-    <div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
-    <span>Streamr</span>
+    <div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M9 7.4v9.2a1.1 1.1 0 0 0 1.66.95l7.7-4.6a1.1 1.1 0 0 0 0-1.9l-7.7-4.6A1.1 1.1 0 0 0 9 7.4z"/></svg></div>
+    <span class="logo-text">Stream<span class="logo-r">r</span></span>
   </div>
 
   <div class="header-search">
