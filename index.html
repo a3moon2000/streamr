@@ -2647,8 +2647,44 @@ function renderPosterRow(items, containerId, opts) {
 }
 
 function renderMindBending() {
-  renderPosterRow(MIND_BENDING, 'mindRow', {});
   document.getElementById('mindCount').textContent = MIND_BENDING.length + ' picks';
+  rowNotice('mindRow', 'Loading mind bending picks', 'Pulling posters and ratings from TMDB.', true);
+  if (!TMDB_KEY) {
+    renderPosterRow(MIND_BENDING, 'mindRow', {});
+    return;
+  }
+  Promise.all(MIND_BENDING.map(function(item) {
+    return tmdbFetch('/' + item.type + '/' + item.id).then(function(d) {
+      if (!d) return item;
+      var ck = item.type + '_' + item.id;
+      var meta = {
+        poster: d.poster_path,
+        backdrop: d.backdrop_path,
+        rating: d.vote_average ? d.vote_average.toFixed(1) : null,
+        overview: d.overview ? d.overview.substring(0, 120) : '',
+        genres: (d.genres || []).slice(0,2).map(function(g){ return g.name; }),
+      };
+      metaCache[ck] = meta;
+      posterCache[ck] = d.poster_path;
+      return {
+        id: item.id,
+        type: item.type,
+        media_type: item.type,
+        title: d.title || d.name || item.title,
+        name: d.name || item.title,
+        release_date: d.release_date || '',
+        first_air_date: d.first_air_date || '',
+        poster_path: d.poster_path,
+        vote_average: d.vote_average || null,
+      };
+    }).catch(function(){ return item; });
+  })).then(function(items) {
+    try {
+      localStorage.setItem('streamr_meta_v1', JSON.stringify(metaCache));
+      localStorage.setItem('streamr_posters_v2', JSON.stringify(posterCache));
+    } catch(e) {}
+    renderPosterRow(items, 'mindRow', {});
+  });
 }
 
 function rowNotice(containerId, title, detail, loading) {
