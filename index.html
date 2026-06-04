@@ -274,6 +274,42 @@
     .prog-strip.on { height: 28px; opacity: 1; }
     .prog-bar-wrap { flex: 1; max-width: 280px; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
     .prog-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 1s linear; }
+    .subtitle-tools {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 32px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      color: var(--text2);
+      font-size: 12px;
+    }
+    .subtitle-tools.on { display: flex; }
+    .sub-tool-btn {
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text2);
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .sub-tool-btn.primary { background: var(--accent); border-color: var(--accent); color: oklch(10% 0 0); }
+    .sub-tool-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .sub-tool-status {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
 
     /* Skeleton shimmer */
     .skel {
@@ -1045,6 +1081,18 @@
       .ctrl-inner { flex-direction: column; align-items: flex-start; }
       .settings { margin-left: 0; }
       .prog-strip { padding: 0 16px; }
+      .subtitle-tools {
+        padding: 10px 16px;
+        display: none;
+        grid-template-columns: 1fr 1fr 42px 42px;
+        gap: 8px;
+      }
+      .subtitle-tools.on { display: grid; }
+      .sub-tool-status {
+        grid-column: 1 / -1;
+        order: -1;
+      }
+      .sub-tool-btn { width: 100%; padding: 0 8px; }
       .player-title-bar { padding: 10px 16px; gap: 8px; }
       .ptb-actions { gap: 6px; }
       .ptb-provider { display: none; }
@@ -1259,6 +1307,14 @@
     <span id="progTime"></span>
     <div class="prog-bar-wrap"><div class="prog-bar-fill" id="progFill" style="width:0%"></div></div>
     <span id="progPct"></span>
+  </div>
+  <div class="subtitle-tools" id="subtitleTools">
+    <button class="sub-tool-btn" onclick="document.getElementById('subtitleFile').click()">Upload .srt</button>
+    <button class="sub-tool-btn primary" id="subClockBtn" onclick="toggleSubtitleClock()" disabled>Start subs</button>
+    <button class="sub-tool-btn" id="subBackBtn" onclick="syncSubtitle(-2)" disabled>-2s</button>
+    <button class="sub-tool-btn" id="subForwardBtn" onclick="syncSubtitle(2)" disabled>+2s</button>
+    <span class="sub-tool-status" id="subtitleStatus">Upload Farsi .srt or add SubDL key</span>
+    <input type="file" id="subtitleFile" accept=".srt,.vtt,text/plain" style="display:none" onchange="handleSubtitleUpload(this)">
   </div>
   <div class="ctrl-bar" id="ctrlBar">
     <div class="ctrl-inner">
@@ -1587,6 +1643,7 @@ var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
 var PLAYER_SOURCES = ['cinezo', 'vidking', 'vidsrc'];
 var lastPlayerRequest = null;
+var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
 
 var GRAD = [
   ['#1a1a2e','#16213e'],['#0f3460','#533483'],['#2d1b33','#1a0a0a'],['#0a2744','#1a4a7a'],
@@ -1904,9 +1961,11 @@ function loadPlayer(id, type, s, e, progress, title) {
   inner.appendChild(sub);
   externalSubtitles = [];
   externalSubtitleLast = '';
+  resetSubtitleClock(false);
 
   document.getElementById('playerWrap').classList.add('open');
   document.getElementById('ctrlBar').classList.add('on');
+  document.getElementById('subtitleTools').classList.add('on');
   document.body.classList.add('player-mode');
   sizeMobilePlayer();
   document.getElementById('heroSection').style.display = 'none';
@@ -1931,12 +1990,14 @@ function goHome() {
   lastPlayerRequest = null;
   externalSubtitles = [];
   externalSubtitleLast = '';
+  resetSubtitleClock(false);
   if (externalSubtitleTimer) { clearTimeout(externalSubtitleTimer); externalSubtitleTimer = null; }
   document.getElementById('playerInner').style.removeProperty('height');
   document.getElementById('playerInner').style.removeProperty('padding-top');
   document.documentElement.style.removeProperty('--player-mobile-height');
   document.getElementById('playerWrap').classList.remove('open');
   document.getElementById('ctrlBar').classList.remove('on');
+  document.getElementById('subtitleTools').classList.remove('on');
   document.body.classList.remove('player-mode');
   document.getElementById('heroSection').style.display = '';
   document.getElementById('playerTitleBar').classList.remove('on');
@@ -1956,7 +2017,116 @@ function showSubtitleHint(text) {
   externalSubtitleTimer = setTimeout(function(){
     el.classList.remove('on', 'hint');
     el.querySelector('span').textContent = '';
+    externalSubtitleLast = '';
+    if (subtitleClockRunning) tickSubtitleClock();
   }, 4200);
+}
+
+function setSubtitleStatus(text) {
+  var el = document.getElementById('subtitleStatus');
+  if (el) el.textContent = text;
+}
+
+function refreshSubtitleButtons() {
+  var hasSubs = externalSubtitles.length > 0;
+  var start = document.getElementById('subClockBtn');
+  var back = document.getElementById('subBackBtn');
+  var forward = document.getElementById('subForwardBtn');
+  if (start) {
+    start.disabled = !hasSubs;
+    start.textContent = subtitleClockRunning ? 'Pause subs' : 'Start subs';
+  }
+  if (back) back.disabled = !hasSubs;
+  if (forward) forward.disabled = !hasSubs;
+}
+
+function resetSubtitleClock(keepStatus) {
+  subtitleClockBase = 0;
+  subtitleClockStartedAt = 0;
+  subtitleClockRunning = false;
+  subtitleSyncOffset = 0;
+  if (subtitleClockTimer) { clearInterval(subtitleClockTimer); subtitleClockTimer = null; }
+  externalSubtitleLast = '';
+  var el = document.getElementById('subtitleOverlay');
+  if (el) {
+    el.classList.remove('on', 'hint');
+    el.querySelector('span').textContent = '';
+  }
+  refreshSubtitleButtons();
+  if (!keepStatus) setSubtitleStatus('Upload Farsi .srt or add SubDL key');
+}
+
+function getSubtitleClockSeconds() {
+  var elapsed = subtitleClockBase;
+  if (subtitleClockRunning) elapsed += (Date.now() - subtitleClockStartedAt) / 1000;
+  return Math.max(0, elapsed + subtitleSyncOffset);
+}
+
+function tickSubtitleClock() {
+  updateExternalSubtitle(getSubtitleClockSeconds());
+}
+
+function startSubtitleClock() {
+  if (!externalSubtitles.length || subtitleClockRunning) return;
+  subtitleClockStartedAt = Date.now();
+  subtitleClockRunning = true;
+  if (subtitleClockTimer) clearInterval(subtitleClockTimer);
+  subtitleClockTimer = setInterval(tickSubtitleClock, 250);
+  refreshSubtitleButtons();
+  setSubtitleStatus('Subtitle clock running. Use -2s / +2s if sync drifts.');
+  tickSubtitleClock();
+}
+
+function pauseSubtitleClock() {
+  if (!subtitleClockRunning) return;
+  subtitleClockBase += (Date.now() - subtitleClockStartedAt) / 1000;
+  subtitleClockRunning = false;
+  if (subtitleClockTimer) { clearInterval(subtitleClockTimer); subtitleClockTimer = null; }
+  refreshSubtitleButtons();
+  setSubtitleStatus('Subtitle clock paused');
+}
+
+function toggleSubtitleClock() {
+  if (subtitleClockRunning) pauseSubtitleClock();
+  else startSubtitleClock();
+}
+
+function syncSubtitle(delta) {
+  if (!externalSubtitles.length) return;
+  subtitleSyncOffset += delta;
+  setSubtitleStatus('Subtitle sync ' + (subtitleSyncOffset >= 0 ? '+' : '') + subtitleSyncOffset.toFixed(0) + 's');
+  tickSubtitleClock();
+}
+
+function loadSubtitleText(text, label) {
+  var parsed = parseSrt(text);
+  if (!parsed.length) {
+    externalSubtitles = [];
+    resetSubtitleClock(true);
+    setSubtitleStatus('Subtitle file could not be read');
+    showSubtitleHint('Subtitle file could not be read');
+    return;
+  }
+  externalSubtitles = parsed;
+  resetSubtitleClock(true);
+  refreshSubtitleButtons();
+  setSubtitleStatus((label || 'Farsi subtitles') + ' loaded. Press Start subs when the movie starts.');
+  showSubtitleHint('Farsi subtitles loaded. Press Start subs.');
+}
+
+function handleSubtitleUpload(input) {
+  var file = input && input.files && input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function() {
+    loadSubtitleText(decodeSubtitleBuffer(reader.result), file.name.replace(/\.(srt|vtt)$/i, ''));
+    input.value = '';
+  };
+  reader.onerror = function() {
+    setSubtitleStatus('Could not read subtitle file');
+    input.value = '';
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 function normalizeSubdlUrl(value) {
@@ -2058,17 +2228,16 @@ function updateExternalSubtitle(seconds) {
 }
 
 function loadExternalFarsiSubtitles(id, type, season, episode) {
-  if (currentPlayerSource !== 'vidking') return;
   if (currentSubtitleLang !== 'fa') return;
   if (!SUBDL_KEY) {
-    showSubtitleHint('Add a SubDL key in Settings for Farsi overlay subtitles');
+    setSubtitleStatus('Upload Farsi .srt or add SubDL key');
     return;
   }
   if (!window.JSZip) {
-    showSubtitleHint('Subtitle unzipper did not load');
+    setSubtitleStatus('Subtitle unzipper did not load');
     return;
   }
-  showSubtitleHint('Loading Farsi subtitles...');
+  setSubtitleStatus('Loading Farsi subtitles...');
   var params = new URLSearchParams();
   params.set('api_key', SUBDL_KEY);
   params.set('tmdb_id', id);
@@ -2089,13 +2258,12 @@ function loadExternalFarsiSubtitles(id, type, season, episode) {
     })
     .then(extractSubtitleText)
     .then(function(text) {
-      externalSubtitles = parseSrt(text);
-      if (!externalSubtitles.length) throw new Error('Subtitle file could not be parsed');
-      showSubtitleHint('Farsi subtitles loaded');
+      loadSubtitleText(text, 'Farsi subtitles');
     })
     .catch(function(err) {
       externalSubtitles = [];
-      showSubtitleHint(err.message || 'Farsi subtitles failed to load');
+      resetSubtitleClock(true);
+      setSubtitleStatus(err.message || 'Farsi subtitles failed to load');
     });
 }
 
