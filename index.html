@@ -735,6 +735,56 @@
     .detail-reco-row::-webkit-scrollbar { display: none; }
     .detail-reco-row .trending-card { flex: 0 0 110px; }
 
+    /* Cast row */
+    .cast-row { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 20px; scrollbar-width: none; }
+    .cast-row::-webkit-scrollbar { display: none; }
+    .cast-chip { flex: 0 0 76px; text-align: center; cursor: pointer; }
+    .cast-avatar {
+      width: 72px; height: 72px; border-radius: 50%; object-fit: cover;
+      background: var(--surface2); border: 2px solid transparent;
+      transition: border-color 150ms, transform 150ms; display: block; margin: 0 auto 6px;
+    }
+    .cast-chip:hover .cast-avatar { border-color: var(--accent); transform: translateY(-2px); }
+    .cast-avatar-ph {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: var(--surface2); display: flex; align-items: center; justify-content: center;
+      font-size: 26px; color: var(--muted); margin: 0 auto 6px; border: 2px solid transparent;
+    }
+    .cast-chip:hover .cast-avatar-ph { border-color: var(--accent); }
+    .cast-name { font-size: 11px; font-weight: 600; line-height: 1.25; }
+    .cast-role { font-size: 10px; color: var(--muted); line-height: 1.2; margin-top: 1px;
+      display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+
+    /* Person modal */
+    .person-backdrop {
+      display: none; position: fixed; inset: 0; z-index: 450;
+      background: oklch(8% 0.01 245 / 0.72); backdrop-filter: blur(8px);
+      align-items: flex-start; justify-content: center; padding: 40px 20px; overflow-y: auto;
+    }
+    .person-backdrop.on { display: flex; }
+    .person-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--rx); width: 720px; max-width: 100%;
+      box-shadow: 0 30px 90px oklch(0% 0 0 / 0.6); animation: fadeUp 350ms ease both; margin: auto 0;
+      overflow: hidden;
+    }
+    .person-head { display: flex; gap: 18px; padding: 24px 24px 0; align-items: flex-start; }
+    .person-photo { width: 110px; height: 110px; border-radius: 14px; object-fit: cover; flex-shrink: 0; background: var(--surface2); }
+    .person-photo-ph { width: 110px; height: 110px; border-radius: 14px; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 40px; flex-shrink: 0; }
+    .person-info { flex: 1; min-width: 0; }
+    .person-name { font-family: var(--serif); font-size: 30px; font-weight: 400; line-height: 1.05; margin-bottom: 4px; }
+    .person-dept { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-bottom: 10px; }
+    .person-bio { font-size: 13px; color: var(--text2); line-height: 1.55;
+      display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+    .person-close {
+      position: absolute; top: 14px; right: 14px;
+      width: 34px; height: 34px; border-radius: 50%;
+      background: oklch(12% 0 0 / 0.5); border: none; color: var(--text);
+      font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .person-close:hover { background: oklch(12% 0 0 / 0.8); }
+    .person-body { padding: 20px 24px 26px; }
+
     /* Toast */
     .toast {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
@@ -832,6 +882,17 @@
       .detail-title { font-size: 28px; }
       .detail-hero { aspect-ratio: 16/10; }
       .detail-body { padding: 20px; }
+      .person-head { flex-direction: column; }
+      .person-photo, .person-photo-ph { width: 88px; height: 88px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
     }
   </style>
 </head>
@@ -1137,6 +1198,11 @@
 <!-- Detail modal -->
 <div class="detail-backdrop" id="detailBackdrop">
   <div class="detail" id="detailCard"></div>
+</div>
+
+<!-- Person modal -->
+<div class="person-backdrop" id="personBackdrop">
+  <div class="person-card" id="personCard" style="position:relative"></div>
 </div>
 
 <!-- Trailer modal -->
@@ -2047,7 +2113,7 @@ function openDetail(id, type, title) {
     var runtime = d.runtime ? Math.floor(d.runtime/60)+'h '+(d.runtime%60)+'m'
       : (d.episode_run_time && d.episode_run_time[0] ? d.episode_run_time[0]+'m/ep' : '');
     var genres = (d.genres || []).map(function(g){ return g.name; });
-    var cast = d.credits && d.credits.cast ? d.credits.cast.slice(0,4).map(function(c){ return c.name; }).join(', ') : '';
+    var castArr = d.credits && d.credits.cast ? d.credits.cast.slice(0, 12) : [];
     var backdrop = d.backdrop_path ? TMDB_IMG+'w1280'+d.backdrop_path : (d.poster_path ? TMDB_IMG+'w780'+d.poster_path : '');
     var faved = isFaved(id, type);
     // trailer (YouTube)
@@ -2087,13 +2153,25 @@ function openDetail(id, type, title) {
       + '<button class="sp-btn info" id="detailFav" onclick="toggleFav('+id+',\''+type+'\',\''+esc(t)+'\')">'
       + '<svg viewBox="0 0 24 24" style="fill:'+(faved?'currentColor':'none')+';stroke:currentColor;stroke-width:2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>'
       + (faved?'In My List':'Add to List')+'</button>'
+      + '<button class="sp-btn info" onclick="shareTitle(\''+esc(t)+'\','+id+',\''+type+'\')"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Share</button>'
       + '</div>'
       + '<div class="detail-overview">'+(d.overview||'No description available.')+'</div>'
       + (genres.length ? '<div class="detail-genres">'+genres.map(function(g){ return '<span class="detail-genre">'+g+'</span>'; }).join('')+'</div>' : '')
+      + (castArr.length ? '<div class="detail-info-label" style="margin-bottom:10px">Cast</div><div class="cast-row">'
+          + castArr.map(function(c){
+              var ph = c.profile_path
+                ? '<img class="cast-avatar" loading="lazy" decoding="async" src="'+TMDB_IMG+'w185'+c.profile_path+'" alt="">'
+                : '<div class="cast-avatar-ph">&#128100;</div>';
+              return '<div class="cast-chip" onclick="openPerson('+c.id+',\''+esc(c.name)+'\')">'+ph
+                + '<div class="cast-name">'+c.name+'</div>'
+                + (c.character ? '<div class="cast-role">'+c.character+'</div>' : '')
+                + '</div>';
+            }).join('')
+          + '</div>' : '')
       + '<div class="detail-info-grid">'
-      + (cast ? '<div class="detail-info-item"><div class="detail-info-label">Cast</div><div class="detail-info-val">'+cast+'</div></div>' : '')
       + (d.vote_count ? '<div class="detail-info-item"><div class="detail-info-label">Votes</div><div class="detail-info-val">'+d.vote_count.toLocaleString()+'</div></div>' : '')
       + (d.status ? '<div class="detail-info-item"><div class="detail-info-label">Status</div><div class="detail-info-val">'+d.status+'</div></div>' : '')
+      + (d.original_language ? '<div class="detail-info-item"><div class="detail-info-label">Language</div><div class="detail-info-val">'+d.original_language.toUpperCase()+'</div></div>' : '')
       + '</div>';
 
     // TV episode picker
@@ -2145,6 +2223,59 @@ function showToast(msg) {
   toastTimer = setTimeout(function(){ t.classList.remove('on'); }, 2200);
 }
 
+/* Share */
+function shareTitle(title, id, type) {
+  var url = location.origin + location.pathname + '#' + type + '/' + id;
+  if (navigator.share) {
+    navigator.share({ title: 'Streamr · ' + title, text: 'Watch ' + title + ' on Streamr', url: url }).catch(function(){});
+  } else if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function(){ showToast('Link copied'); }).catch(function(){ showToast(url); });
+  } else { showToast(url); }
+}
+
+/* Person filmography modal */
+function openPerson(id, name) {
+  var card = document.getElementById('personCard');
+  card.innerHTML = '<button class="person-close" onclick="closePerson()">&#10005;</button>'
+    + '<div class="person-head"><div class="skel" style="width:110px;height:110px;border-radius:14px;flex:0 0 110px"></div>'
+    + '<div class="person-info"><div class="skel skel-line" style="width:60%;height:26px"></div>'
+    + '<div class="skel skel-line" style="width:90%;height:13px;margin-top:14px"></div>'
+    + '<div class="skel skel-line" style="width:80%;height:13px;margin-top:7px"></div></div></div>'
+    + '<div class="person-body"></div>';
+  document.getElementById('personBackdrop').classList.add('on');
+  document.body.style.overflow = 'hidden';
+
+  tmdbFetch('/person/' + id + '?append_to_response=combined_credits').then(function(p) {
+    if (!p) { closePerson(); return; }
+    var photo = p.profile_path
+      ? '<img class="person-photo" src="'+TMDB_IMG+'w185'+p.profile_path+'" alt="">'
+      : '<div class="person-photo-ph">&#128100;</div>';
+    var bio = p.biography ? p.biography.split('\n')[0] : '';
+    var credits = (p.combined_credits && p.combined_credits.cast ? p.combined_credits.cast : [])
+      .filter(function(c){ return c.poster_path && (c.media_type==='movie'||c.media_type==='tv'); });
+    var seen = {}, uniq = [];
+    credits.sort(function(a,b){ return (b.popularity||0)-(a.popularity||0); });
+    credits.forEach(function(c){ var k=c.media_type+'_'+c.id; if(!seen[k]){ seen[k]=1; uniq.push(c); } });
+    uniq = dropHidden(uniq).slice(0, 18);
+
+    card.innerHTML = '<button class="person-close" onclick="closePerson()">&#10005;</button>'
+      + '<div class="person-head">'+photo
+      + '<div class="person-info"><div class="person-name">'+(p.name||name)+'</div>'
+      + (p.known_for_department ? '<div class="person-dept">'+p.known_for_department+(p.birthday?' · born '+p.birthday.substring(0,4):'')+'</div>' : '')
+      + (bio ? '<div class="person-bio">'+bio+'</div>' : '')
+      + '</div></div>'
+      + '<div class="person-body"><div class="detail-reco-label">Known For</div>'
+      + '<div class="browse-grid">'
+      + uniq.map(function(c,i){ return posterCardHTML(c, i, {}); }).join('')
+      + '</div></div>';
+  });
+}
+function closePerson() {
+  document.getElementById('personBackdrop').classList.remove('on');
+  if (!document.getElementById('detailBackdrop').classList.contains('on')) document.body.style.overflow = '';
+}
+document.getElementById('personBackdrop').addEventListener('click', function(e){ if (e.target === this) closePerson(); });
+
 function loadEpisodes(showId, title) {
   var sel = document.getElementById('seasonSelect');
   if (!sel) return;
@@ -2172,7 +2303,18 @@ document.getElementById('detailBackdrop').addEventListener('click', function(e) 
   if (e.target === this) closeDetail();
 });
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') { closeTrailer(); closeDetail(); closeSettings(); closeBrowse(); }
+  if (e.key === 'Escape') {
+    if (document.getElementById('trailerBackdrop').classList.contains('on')) { closeTrailer(); return; }
+    if (document.getElementById('personBackdrop').classList.contains('on')) { closePerson(); return; }
+    if (document.getElementById('detailBackdrop').classList.contains('on')) { closeDetail(); return; }
+    closeSettings(); closeBrowse();
+  }
+  // "/" focuses search
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT' && document.activeElement.tagName !== 'TEXTAREA') {
+    e.preventDefault();
+    var s = document.getElementById('headerSearchInput');
+    if (s) s.focus();
+  }
 });
 
 /* Lazy-load a row when it nears the viewport (cuts the initial fetch burst) */
