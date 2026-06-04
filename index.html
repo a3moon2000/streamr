@@ -1288,8 +1288,8 @@ function applyPoster(type, id) {
   var el = document.getElementById('poster_' + ck);
   if (!el || el.querySelector('img')) return;
   var img = document.createElement('img');
-  img.src = TMDB_IMG + 'w300' + path;
-  img.alt = ''; img.loading = 'lazy';
+  img.src = TMDB_IMG + 'w185' + path;
+  img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
   img.onload = function() { el.classList.add('has-img'); };
   el.appendChild(img);
 }
@@ -1742,7 +1742,7 @@ function showSpot(i) {
   var bg = document.getElementById('spotlightBg');
   bg.classList.remove('on');
   var img = new Image();
-  img.src = TMDB_IMG + 'original' + s.backdrop_path;
+  img.src = TMDB_IMG + 'w1280' + s.backdrop_path;
   img.onload = function() {
     bg.style.backgroundImage = 'url(' + img.src + ')';
     bg.classList.add('on');
@@ -1778,7 +1778,7 @@ function posterCardHTML(item, i, opts) {
   var year = (item.release_date || item.first_air_date || '').substring(0, 4);
   var type = item.media_type || item.type || 'movie';
   var poster = item.poster_path
-    ? '<img src="'+TMDB_IMG+'w185'+item.poster_path+'" alt="" loading="lazy" onload="this.closest(\'.pick-poster\').classList.add(\'has-img\')">'
+    ? '<img src="'+TMDB_IMG+'w185'+item.poster_path+'" alt="" loading="lazy" decoding="async" onload="this.closest(\'.pick-poster\').classList.add(\'has-img\')">'
     : '';
   var rating = item.vote_average ? '★ ' + item.vote_average.toFixed(1) : (item.rating ? '★ '+item.rating : '');
   var num = opts.numbered ? '<div class="trending-num">'+(i+1)+'</div>' : '';
@@ -2175,21 +2175,31 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') { closeTrailer(); closeDetail(); closeSettings(); closeBrowse(); }
 });
 
-/* Init */
+/* Lazy-load a row when it nears the viewport (cuts the initial fetch burst) */
+function lazyLoad(anchorId, fn) {
+  var el = document.getElementById(anchorId);
+  if (!el || !('IntersectionObserver' in window)) { fn(); return; }
+  var io = new IntersectionObserver(function(entries) {
+    if (entries[0].isIntersecting) { io.disconnect(); fn(); }
+  }, { rootMargin: '700px 0px' });
+  io.observe(el);
+}
+
+/* Init - above-the-fold immediately, the rest stream in on scroll */
 renderSpotlight();
 renderFeatured();
-renderPicks(MOVIES, 'movie', 'movieGrid');
-renderPicks(TV, 'tv', 'tvGrid');
 renderCW();
 renderMyList();
 fetchTrending();
-fetchTopRated();
-fetchNowPlaying();
-fetch4K();
-fetchBollywood();
-fetchPersian();
-fetchAnime();
-fetchKDrama();
+lazyLoad('topRatedRow',   fetchTopRated);
+lazyLoad('nowPlayingRow', fetchNowPlaying);
+lazyLoad('uhdRow',        fetch4K);
+lazyLoad('bollyRow',      fetchBollywood);
+lazyLoad('persianRow',    fetchPersian);
+lazyLoad('animeRow',      fetchAnime);
+lazyLoad('kdramaRow',     fetchKDrama);
+lazyLoad('movieGrid',     function(){ renderPicks(MOVIES, 'movie', 'movieGrid'); });
+lazyLoad('tvGrid',        function(){ renderPicks(TV, 'tv', 'tvGrid'); });
 
 // PWA service worker
 if ('serviceWorker' in navigator) {
