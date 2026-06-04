@@ -784,6 +784,15 @@
     }
     .person-close:hover { background: oklch(12% 0 0 / 0.8); }
     .person-body { padding: 20px 24px 26px; }
+    .person-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+    .person-grid .trending-card { flex: none; }
+    .person-grid .trending-info { padding: 7px 8px 9px; }
+    .person-grid .trending-title { font-size: 10px; -webkit-line-clamp: 2; }
+    .person-grid .trending-meta { font-size: 9px; }
+    .person-grid .pick-badge { font-size: 8px; padding: 1px 4px; }
+    @media (max-width: 640px) {
+      .person-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+    }
 
     /* Toast */
     .toast {
@@ -2279,7 +2288,7 @@ function openPerson(id, name) {
       + (bio ? '<div class="person-bio">'+bio+'</div>' : '')
       + '</div></div>'
       + '<div class="person-body"><div class="detail-reco-label">Known For</div>'
-      + '<div class="browse-grid">'
+      + '<div class="person-grid">'
       + uniq.map(function(c,i){ return posterCardHTML(c, i, {}); }).join('')
       + '</div></div>';
   });
