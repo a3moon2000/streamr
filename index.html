@@ -1389,6 +1389,7 @@
     <div class="sec-title">Mind Bending</div>
     <div class="sec-count" id="mindCount"></div>
     <div class="sec-line"></div>
+    <div class="sec-seeall" onclick="openBrowse('mind')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('mindRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2649,11 +2650,45 @@ function renderPosterRow(items, containerId, opts) {
 function renderMindBending() {
   document.getElementById('mindCount').textContent = MIND_BENDING.length + ' picks';
   rowNotice('mindRow', 'Loading mind bending picks', 'Pulling posters and ratings from TMDB.', true);
-  if (!TMDB_KEY) {
-    renderPosterRow(MIND_BENDING, 'mindRow', {});
-    return;
-  }
-  Promise.all(MIND_BENDING.map(function(item) {
+  hydrateCuratedItems(MIND_BENDING).then(function(items) {
+    renderPosterRow(items, 'mindRow', {});
+  });
+}
+
+function rowNotice(containerId, title, detail, loading) {
+  var row = document.getElementById(containerId);
+  if (!row) return;
+  row.innerHTML = '<div class="row-notice'+(loading?' loading':'')+'"><div><strong>'+title+'</strong>'+(detail?'<span>'+detail+'</span>':'')+'</div></div>';
+}
+
+function rowQueued(containerId) {
+  rowNotice(containerId, 'Queued', 'This row loads as you scroll to protect first paint.', true);
+}
+
+function rowFailed(containerId) {
+  rowNotice(containerId, 'Could not load this row', 'TMDB did not return usable titles. Try refresh or check the API key.');
+}
+
+/* ── Browse overlay (See all) ─────────────────────── */
+// type: movie|tv. params: discover filters (no sort_by). endpoint: special non-discover for Featured view.
+var browseCats = {
+  mind:       { title:'Mind Bending',       type:'mixed', curated:true },
+  trending:   { title:'Trending This Week', type:'movie', params:'', endpoint:'/trending/all/week', allowTV:true },
+  toprated:   { title:'Top Rated Movies',   type:'movie', params:'vote_count.gte=300', endpoint:'/movie/top_rated' },
+  nowplaying: { title:'In Theaters Now',    type:'movie', params:'', endpoint:'/movie/now_playing' },
+  uhd:        { title:'4K Ultra HD',        type:'movie', params:'primary_release_date.gte=2022-01-01&vote_count.gte=400&with_original_language=en' },
+  bolly:      { title:'Bollywood Latest',   type:'movie', params:'with_original_language=hi&vote_count.gte=12', defaultSort:'primary_release_date.desc' },
+  persian:    { title:'Persian Cinema',     type:'movie', params:'with_original_language=fa&vote_count.gte=3' },
+  anime:      { title:'Anime',              type:'tv',    params:'with_genres=16&with_original_language=ja&vote_count.gte=50' },
+  kdrama:     { title:'Korean Drama',       type:'tv',    params:'with_original_language=ko&vote_count.gte=40' },
+  popmovies:  { title:'Popular Movies',     type:'movie', params:'vote_count.gte=150&without_genres=27' },
+  poptv:      { title:'Popular TV Shows',   type:'tv',    params:'vote_count.gte=100' }
+};
+var browseKey = null, browsePageNum = 1, browseItems = [], browseSort = 'default';
+
+function hydrateCuratedItems(items) {
+  if (!TMDB_KEY) return Promise.resolve(items);
+  return Promise.all(items.map(function(item) {
     return tmdbFetch('/' + item.type + '/' + item.id).then(function(d) {
       if (!d) return item;
       var ck = item.type + '_' + item.id;
@@ -2678,50 +2713,21 @@ function renderMindBending() {
         vote_average: d.vote_average || null,
       };
     }).catch(function(){ return item; });
-  })).then(function(items) {
+  })).then(function(hydrated) {
     try {
       localStorage.setItem('streamr_meta_v1', JSON.stringify(metaCache));
       localStorage.setItem('streamr_posters_v2', JSON.stringify(posterCache));
     } catch(e) {}
-    renderPosterRow(items, 'mindRow', {});
+    return hydrated;
   });
 }
-
-function rowNotice(containerId, title, detail, loading) {
-  var row = document.getElementById(containerId);
-  if (!row) return;
-  row.innerHTML = '<div class="row-notice'+(loading?' loading':'')+'"><div><strong>'+title+'</strong>'+(detail?'<span>'+detail+'</span>':'')+'</div></div>';
-}
-
-function rowQueued(containerId) {
-  rowNotice(containerId, 'Queued', 'This row loads as you scroll to protect first paint.', true);
-}
-
-function rowFailed(containerId) {
-  rowNotice(containerId, 'Could not load this row', 'TMDB did not return usable titles. Try refresh or check the API key.');
-}
-
-/* ── Browse overlay (See all) ─────────────────────── */
-// type: movie|tv. params: discover filters (no sort_by). endpoint: special non-discover for Featured view.
-var browseCats = {
-  trending:   { title:'Trending This Week', type:'movie', params:'', endpoint:'/trending/all/week', allowTV:true },
-  toprated:   { title:'Top Rated Movies',   type:'movie', params:'vote_count.gte=300', endpoint:'/movie/top_rated' },
-  nowplaying: { title:'In Theaters Now',    type:'movie', params:'', endpoint:'/movie/now_playing' },
-  uhd:        { title:'4K Ultra HD',        type:'movie', params:'primary_release_date.gte=2022-01-01&vote_count.gte=400&with_original_language=en' },
-  bolly:      { title:'Bollywood Latest',   type:'movie', params:'with_original_language=hi&vote_count.gte=12', defaultSort:'primary_release_date.desc' },
-  persian:    { title:'Persian Cinema',     type:'movie', params:'with_original_language=fa&vote_count.gte=3' },
-  anime:      { title:'Anime',              type:'tv',    params:'with_genres=16&with_original_language=ja&vote_count.gte=50' },
-  kdrama:     { title:'Korean Drama',       type:'tv',    params:'with_original_language=ko&vote_count.gte=40' },
-  popmovies:  { title:'Popular Movies',     type:'movie', params:'vote_count.gte=150&without_genres=27' },
-  poptv:      { title:'Popular TV Shows',   type:'tv',    params:'vote_count.gte=100' }
-};
-var browseKey = null, browsePageNum = 1, browseItems = [], browseSort = 'default';
 
 function openBrowse(key) {
   browseKey = key; browsePageNum = 1; browseItems = []; browseSort = 'default';
   var cat = browseCats[key];
   if (!cat) return;
   document.getElementById('browseTitle').textContent = cat.title;
+  document.getElementById('browseSorts').style.display = cat.curated ? 'none' : '';
   document.querySelectorAll('.bsort').forEach(function(b,i){ b.classList.toggle('active', i===0); });
   document.getElementById('browseGrid').innerHTML = '';
   for (var i = 0; i < 18; i++) document.getElementById('browseGrid').insertAdjacentHTML('beforeend', '<div class="skel skel-card"></div>');
@@ -2769,6 +2775,18 @@ function loadBrowsePage() {
   if (!cat) return;
   var btn = document.getElementById('browseMoreBtn');
   btn.disabled = true; btn.textContent = 'Loading...';
+  if (cat.curated && browseKey === 'mind') {
+    hydrateCuratedItems(MIND_BENDING).then(function(items) {
+      document.getElementById('browseGrid').innerHTML = '';
+      var grid = document.getElementById('browseGrid');
+      grid.insertAdjacentHTML('beforeend', dropHidden(items).map(function(item, i){ return posterCardHTML(item, i, {}); }).join(''));
+      browseItems = items;
+      btn.disabled = false;
+      btn.textContent = 'Load More';
+      btn.style.display = 'none';
+    });
+    return;
+  }
   tmdbFetch(browsePath(cat, browsePageNum)).then(function(data) {
     if (browsePageNum === 1) document.getElementById('browseGrid').innerHTML = '';
     if (!data || !data.results) { btn.style.display='none'; return; }
@@ -2789,6 +2807,7 @@ function loadBrowsePage() {
 function closeBrowse() {
   document.getElementById('browseOverlay').classList.remove('on');
   document.body.style.overflow = '';
+  document.getElementById('browseSorts').style.display = '';
 }
 
 function skeletonRow(containerId, count) {
