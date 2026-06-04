@@ -1,9 +1,13 @@
 /* Streamr service worker - app shell cache for installability + offline shell */
-var CACHE = 'streamr-v3';
+var CACHE = 'streamr-v7';
 var SHELL = ['./', './index.html', './icon.svg', './manifest.json'];
 
 self.addEventListener('install', function(e) {
   e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(SHELL); }).then(function(){ return self.skipWaiting(); }));
+});
+
+self.addEventListener('message', function(e) {
+  if (e.data === 'skipWaiting') self.skipWaiting();
 });
 
 self.addEventListener('activate', function(e) {

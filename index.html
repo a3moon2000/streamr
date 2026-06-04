@@ -76,7 +76,7 @@
 
     /* Search in header */
     .header-search {
-      position: relative; width: 320px;
+      position: relative; width: 320px; min-width: 0;
     }
     .header-search input[type="text"] {
       width: 100%; padding: 8px 14px 8px 40px;
@@ -169,13 +169,34 @@
     /* Player */
     .player-section { position: relative; }
     .player-wrap {
-      width: 100%; background: #000;
+      width: 100%; background: oklch(6% 0.004 245);
       display: none;
     }
     .player-wrap.open { display: block; }
     .player-inner { position: relative; padding-top: 56.25%; }
     .player-wrap iframe {
       position: absolute; inset: 0; width: 100%; height: 100%; border: none;
+    }
+    body.player-mode header,
+    body.player-mode .quicknav {
+      display: none;
+    }
+    body.player-mode .player-title-bar {
+      position: sticky;
+      top: 0;
+      z-index: 260;
+      min-height: 50px;
+    }
+    body.player-mode .player-wrap.open {
+      background: oklch(6% 0.004 245);
+    }
+    body.player-mode .player-inner {
+      height: var(--player-mobile-height, 62dvh);
+      min-height: 360px;
+      padding-top: 0;
+    }
+    body.player-mode .player-inner iframe {
+      height: 100%;
     }
     .player-title-bar {
       display: none; align-items: center; gap: 12px;
@@ -303,6 +324,7 @@
     }
     .ctrl-bar.on { display: block; }
     .ctrl-inner { max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .ctrl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
     .type-toggle { display: flex; background: var(--surface2); border-radius: var(--r); padding: 3px; gap: 3px; flex-shrink: 0; }
     .type-toggle button {
       padding: 5px 14px; border: none; border-radius: calc(var(--r) - 2px);
@@ -334,6 +356,8 @@
     }
     .btn-watch:hover { opacity: 0.85; transform: translateY(-1px); }
     .settings { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+    .pref-group { display: flex; align-items: center; gap: 8px; }
+    .pref-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); }
     .chips { display: flex; gap: 4px; }
     .chip {
       width: 16px; height: 16px; border-radius: 50%;
@@ -370,6 +394,39 @@
     .sec-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
     .sec-count { font-size: 12px; color: var(--muted); font-family: var(--mono); }
     .sec-line { flex: 1; height: 1px; background: var(--border); }
+    .row-notice {
+      flex: 1 0 100%;
+      min-height: 154px;
+      border: 1px solid var(--border);
+      border-radius: var(--rl);
+      background: linear-gradient(135deg, oklch(31% 0.018 245), oklch(24% 0.016 245));
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+    }
+    .row-notice strong {
+      display: block;
+      color: var(--text2);
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .row-notice.loading::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 6px var(--accent-bg);
+      margin-right: 12px;
+    }
+    .picks-grid .row-notice {
+      grid-column: 1 / -1;
+      min-height: 132px;
+    }
 
     /* Featured row */
     .scroll-wrap { position: relative; }
@@ -716,7 +773,7 @@
       position: relative; padding-top: 56.25%;
       border-radius: var(--rl); overflow: hidden;
       box-shadow: 0 30px 90px oklch(0% 0 0 / 0.7);
-      background: #000;
+      background: oklch(6% 0.004 245);
     }
     .trailer-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
     .trailer-close {
@@ -786,12 +843,13 @@
     .person-body { padding: 20px 24px 26px; }
     .person-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
     .person-grid .trending-card { flex: none; }
+    .person-grid .pick-poster { background: var(--surface2); }
     .person-grid .trending-info { padding: 7px 8px 9px; }
     .person-grid .trending-title { font-size: 10px; -webkit-line-clamp: 2; }
     .person-grid .trending-meta { font-size: 9px; }
     .person-grid .pick-badge { font-size: 8px; padding: 1px 4px; }
     @media (max-width: 640px) {
-      .person-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+      .person-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
     }
 
     /* Toast */
@@ -871,28 +929,211 @@
     }
 
     @media (max-width: 640px) {
-      header { padding: 0 14px; gap: 10px; }
-      .header-search { width: 100%; }
-      .spotlight { height: 420px; }
-      .spotlight-content { padding: 0 20px; bottom: 32px; max-width: 100%; }
-      .spotlight-title { font-size: 34px; }
-      .spotlight-overview { font-size: 13px; -webkit-line-clamp: 2; }
-      .spotlight-dots { right: 20px; bottom: 16px; }
-      .sp-btn { padding: 10px 18px; font-size: 14px; }
+      body { font-size: 13px; }
+      header { height: 58px; min-height: 58px; padding: 7px 12px; gap: 8px; flex-wrap: nowrap; }
+      header .spacer { display: none; }
+      .logo { flex: 0 0 auto; min-width: 0; }
+      .logo-icon { width: 34px; height: 34px; border-radius: 10px; }
+      .logo-text { display: none; }
+      .header-search { flex: 1 1 auto; width: auto; min-width: 0; order: 0; }
+      .header-search input[type="text"] { height: 38px; font-size: 14px; padding-left: 36px; }
+      .header-search svg { left: 11px; }
+      .search-results {
+        position: fixed;
+        top: calc(env(safe-area-inset-top) + 58px);
+        left: 10px;
+        right: 10px;
+        max-height: calc(100dvh - 70px);
+        border-radius: 12px;
+      }
+      .hdr-btn { width: 38px; height: 38px; }
+      .install-btn { width: 38px; height: 38px; padding: 0; justify-content: center; font-size: 0; }
+      .install-btn svg { width: 17px; height: 17px; }
+      .quicknav { top: 58px; padding: 8px 12px; gap: 6px; scroll-padding-inline: 12px; }
+      .qn-pill { padding: 7px 12px; font-size: 12px; }
+      .scroll-anchor { scroll-margin-top: 116px; }
+      .spotlight { height: 390px; }
+      .spotlight-bg { background-position: center top; }
+      .spotlight-grad {
+        background:
+          linear-gradient(to top, var(--bg) 4%, oklch(22% 0.016 255 / 0.28) 45%, transparent 78%),
+          linear-gradient(to right, oklch(22% 0.016 255 / 0.65), transparent 72%);
+      }
+      .spotlight-content { left: 0; right: 0; width: 100%; padding: 0 16px; bottom: 24px; max-width: 100%; }
+      .spotlight-badges { gap: 7px; margin-bottom: 10px; }
+      .spotlight-title { font-size: 38px; line-height: 0.98; margin-bottom: 10px; }
+      .spotlight-overview { font-size: 13px; -webkit-line-clamp: 2; margin-bottom: 16px; }
+      .spotlight-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; width: 100%; }
+      .spotlight-actions .sp-btn { justify-content: center; }
+      .spotlight-dots { right: 16px; bottom: 12px; }
+      .sp-btn { min-height: 42px; padding: 10px 14px; font-size: 14px; border-radius: 9px; }
       .content { padding: 0 16px 48px; }
-      .sec-header { margin-top: 32px; }
-      .picks-grid { grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 8px; }
-      .feat-card { flex: 0 0 240px; }
+      .sec-header { margin-top: 28px; margin-bottom: 12px; }
+      .sec-title { font-size: 17px; }
+      .sec-count { font-size: 11px; }
+      .scroll-wrap { margin-inline: -16px; padding-inline: 16px; }
+      .scroll-arrow { display: none; }
+      .featured-row, .trending-row, .cw-row, .cast-row, .detail-reco-row {
+        padding-left: 16px;
+        padding-right: 16px;
+        margin-left: -16px;
+        margin-right: -16px;
+        scroll-padding-inline: 16px;
+      }
+      .picks-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .pick-info { padding: 9px 10px 12px; }
+      .pick-title { font-size: 12px; line-height: 1.25; }
+      .pick-fav { display: flex; width: 30px; height: 30px; }
+      .pick-overlay, .pick-overview { display: none; }
+      .pick:hover, .trending-card:hover, .feat-card:hover { transform: none; }
+      .pick:hover .pick-poster img, .trending-card:hover .pick-poster img { transform: none; }
+      .feat-card { flex: 0 0 258px; }
+      .trending-card { flex-basis: 132px; }
+      .trending-info { padding: 8px 9px 10px; }
+      .trending-title { font-size: 11.5px; }
+      .row-notice { min-height: 116px; margin-inline: 0; }
       .ctrl-bar { padding: 10px 16px; }
       .ctrl-inner { flex-direction: column; align-items: flex-start; }
       .settings { margin-left: 0; }
       .prog-strip { padding: 0 16px; }
       .player-title-bar { padding: 10px 16px; }
-      .detail-title { font-size: 28px; }
-      .detail-hero { aspect-ratio: 16/10; }
-      .detail-body { padding: 20px; }
-      .person-head { flex-direction: column; }
-      .person-photo, .person-photo-ph { width: 88px; height: 88px; }
+      body.player-mode .ctrl-bar {
+        padding: 12px 16px 16px;
+        border-top: 1px solid var(--border);
+      }
+      body.player-mode .ctrl-inner {
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        gap: 12px;
+      }
+      body.player-mode .ctrl-row {
+        width: 100%;
+      }
+      body.player-mode .ctrl-target {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 10px;
+      }
+      body.player-mode .type-toggle {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        width: 100%;
+      }
+      body.player-mode .type-toggle button {
+        min-height: 38px;
+        font-size: 13px;
+      }
+      body.player-mode .field {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        min-width: 0;
+      }
+      body.player-mode .field label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-family: var(--mono);
+      }
+      body.player-mode #tmdbId,
+      body.player-mode input[type="number"] {
+        width: 100%;
+        height: 42px;
+        font-size: 15px;
+      }
+      body.player-mode .btn-watch {
+        height: 42px;
+        align-self: end;
+        font-size: 14px;
+      }
+      body.player-mode .tv-fields.on {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        width: 100%;
+      }
+      body.player-mode .settings {
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        gap: 10px;
+        margin-left: 0;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+        width: 100%;
+      }
+      body.player-mode .pref-group {
+        justify-content: space-between;
+        min-height: 40px;
+      }
+      body.player-mode .chips {
+        gap: 8px;
+      }
+      body.player-mode .chip {
+        width: 30px;
+        height: 30px;
+      }
+      body.player-mode .tog-label {
+        min-height: 44px;
+        justify-content: space-between;
+        padding: 0 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        background: var(--surface2);
+        color: var(--text2);
+        font-size: 13px;
+      }
+      body.player-mode .sw {
+        width: 42px;
+        height: 24px;
+      }
+      body.player-mode .sw-track {
+        border-radius: 999px;
+      }
+      body.player-mode .sw-track::before {
+        width: 16px;
+        height: 16px;
+        top: 4px;
+        left: 4px;
+      }
+      body.player-mode .sw input:checked + .sw-track::before {
+        transform: translateX(18px);
+      }
+      .detail-backdrop, .person-backdrop { padding: 0; align-items: stretch; }
+      .detail, .person-card { width: 100%; max-width: 100%; min-height: 100dvh; margin: 0; border-radius: 0; border-left: 0; border-right: 0; }
+      .detail-close, .person-close { position: fixed; top: calc(env(safe-area-inset-top) + 12px); right: 12px; width: 40px; height: 40px; z-index: 460; background: oklch(10% 0 0 / 0.72); }
+      .detail-title { font-size: 31px; letter-spacing: -0.5px; }
+      .detail-meta { gap: 8px; font-size: 11px; }
+      .detail-hero { aspect-ratio: 16/11; }
+      .detail-hero-content { padding: 0 18px 18px; }
+      .detail-body { padding: 0 18px 24px; }
+      .detail-actions {
+        position: sticky;
+        top: 0;
+        z-index: 8;
+        background: var(--surface);
+        padding: 12px 0;
+        margin: 0 0 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .detail-actions .sp-btn { flex: 1 1 calc(50% - 6px); justify-content: center; min-height: 44px; }
+      .detail-actions .sp-btn.play { flex-basis: 100%; }
+      .detail-overview { font-size: 13px; line-height: 1.55; margin-bottom: 16px; }
+      .cast-chip { flex-basis: 70px; }
+      .cast-avatar, .cast-avatar-ph { width: 66px; height: 66px; }
+      .detail-info-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+      .detail-reco-row .trending-card { flex-basis: 118px; }
+      .person-head { flex-direction: row; gap: 12px; padding: 18px 18px 0; }
+      .person-photo, .person-photo-ph { width: 76px; height: 76px; border-radius: 12px; }
+      .person-name { font-size: 27px; padding-right: 42px; }
+      .person-body { padding: 18px; }
+      .person-bio { -webkit-line-clamp: 6; }
+      .browse-head { padding: 12px 16px; }
+      .browse-head h2 { font-size: 24px; }
+      .browse-body { padding: 18px 16px 48px; }
+      .browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -916,7 +1157,7 @@
 
   <div class="header-search">
     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-    <input type="text" id="headerSearchInput" placeholder="Search movies and TV shows..." autocomplete="off">
+    <input type="text" id="headerSearchInput" placeholder="Search titles" autocomplete="off">
     <div class="search-results" id="headerSearchResults"></div>
   </div>
 
@@ -960,26 +1201,31 @@
   </div>
   <div class="ctrl-bar" id="ctrlBar">
     <div class="ctrl-inner">
-      <div class="type-toggle">
-        <button class="active" id="btnMovie" onclick="setType('movie')">Movie</button>
-        <button id="btnTV" onclick="setType('tv')">TV Show</button>
+      <div class="ctrl-row ctrl-target">
+        <div class="type-toggle">
+          <button class="active" id="btnMovie" onclick="setType('movie')">Movie</button>
+          <button id="btnTV" onclick="setType('tv')">TV Show</button>
+        </div>
+        <div class="field id-field"><label>ID</label><input type="text" id="tmdbId" placeholder="TMDB ID"></div>
+        <button class="btn-watch" onclick="loadPlayer()">&#9654; Watch</button>
       </div>
-      <div class="field"><label>ID</label><input type="text" id="tmdbId" placeholder="TMDB ID"></div>
       <div class="tv-fields" id="tvFields">
         <div class="field"><label>S</label><input type="number" id="season" value="1" min="1"></div>
         <div class="field"><label>E</label><input type="number" id="episode" value="1" min="1"></div>
       </div>
-      <button class="btn-watch" onclick="loadPlayer()">&#9654; Watch</button>
       <div class="settings">
-        <div class="chips">
-          <div class="chip active" data-color="0dcaf0" style="background:#0dcaf0" onclick="setColor(this)"></div>
-          <div class="chip" data-color="e50914" style="background:#e50914" onclick="setColor(this)"></div>
-          <div class="chip" data-color="f5a623" style="background:#f5a623" onclick="setColor(this)"></div>
-          <div class="chip" data-color="9146ff" style="background:#9146ff" onclick="setColor(this)"></div>
-          <div class="chip" data-color="1db954" style="background:#1db954" onclick="setColor(this)"></div>
+        <div class="pref-group">
+          <span class="pref-label">Accent</span>
+          <div class="chips">
+            <div class="chip active" data-color="0dcaf0" style="background:#0dcaf0" onclick="setColor(this)"></div>
+            <div class="chip" data-color="e50914" style="background:#e50914" onclick="setColor(this)"></div>
+            <div class="chip" data-color="f5a623" style="background:#f5a623" onclick="setColor(this)"></div>
+            <div class="chip" data-color="9146ff" style="background:#9146ff" onclick="setColor(this)"></div>
+            <div class="chip" data-color="1db954" style="background:#1db954" onclick="setColor(this)"></div>
+          </div>
         </div>
-        <label class="tog-label">Auto <label class="sw"><input type="checkbox" id="autoPlay"><span class="sw-track"></span></label></label>
-        <label class="tog-label" id="epSelLabel" style="display:none">EpSel <label class="sw"><input type="checkbox" id="epSel" checked><span class="sw-track"></span></label></label>
+        <label class="tog-label">Auto <span class="sw"><input type="checkbox" id="autoPlay"><span class="sw-track"></span></span></label>
+        <label class="tog-label" id="epSelLabel" style="display:none">Episodes <span class="sw"><input type="checkbox" id="epSel" checked><span class="sw-track"></span></span></label>
       </div>
     </div>
   </div>
@@ -1459,6 +1705,23 @@ function setColor(el) {
   currentColor = el.dataset.color;
 }
 
+function sizeMobilePlayer() {
+  if (!document.body.classList.contains('player-mode')) return;
+  var inner = document.getElementById('playerInner');
+  var vw = Math.min(window.innerWidth || 0, document.documentElement.clientWidth || 0) || window.innerWidth;
+  var vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight || 700;
+  var isCompact = vw <= 920 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  if (!isCompact) {
+    inner.style.removeProperty('height');
+    document.documentElement.style.removeProperty('--player-mobile-height');
+    return;
+  }
+  var target = Math.round(Math.max(360, Math.min(vh * 0.58, vh - 350, 560)));
+  inner.style.height = target + 'px';
+  inner.style.paddingTop = '0';
+  document.documentElement.style.setProperty('--player-mobile-height', target + 'px');
+}
+
 function loadPlayer(id, type, s, e, progress, title) {
   id   = id   || document.getElementById('tmdbId').value.trim();
   type = type || currentType;
@@ -1478,6 +1741,8 @@ function loadPlayer(id, type, s, e, progress, title) {
 
   document.getElementById('playerWrap').classList.add('open');
   document.getElementById('ctrlBar').classList.add('on');
+  document.body.classList.add('player-mode');
+  sizeMobilePlayer();
   document.getElementById('heroSection').style.display = 'none';
   document.getElementById('playerTitleBar').classList.add('on');
   document.getElementById('ptbTitle').textContent = title || (type + ' #' + id);
@@ -1495,14 +1760,20 @@ function loadPlayer(id, type, s, e, progress, title) {
 
 function goHome() {
   document.getElementById('playerInner').innerHTML = '';
+  document.getElementById('playerInner').style.removeProperty('height');
+  document.getElementById('playerInner').style.removeProperty('padding-top');
+  document.documentElement.style.removeProperty('--player-mobile-height');
   document.getElementById('playerWrap').classList.remove('open');
   document.getElementById('ctrlBar').classList.remove('on');
+  document.body.classList.remove('player-mode');
   document.getElementById('heroSection').style.display = '';
   document.getElementById('playerTitleBar').classList.remove('on');
   document.getElementById('progStrip').classList.remove('on');
   document.getElementById('tmdbId').value = '';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+window.addEventListener('resize', sizeMobilePlayer);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', sizeMobilePlayer);
 
 /* Progress tracking */
 window.addEventListener('message', function(ev) {
@@ -1873,8 +2144,22 @@ function renderPosterRow(items, containerId, opts) {
   opts = opts || {};
   items = dropHidden(items);
   var row = document.getElementById(containerId);
-  if (!items || items.length === 0) { row.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px 0">Nothing here yet</div>'; return; }
+  if (!items || items.length === 0) { rowNotice(containerId, 'Nothing matched', 'Try another sort or loosen hidden genres.'); return; }
   row.innerHTML = items.map(function(item, i) { return posterCardHTML(item, i, opts); }).join('');
+}
+
+function rowNotice(containerId, title, detail, loading) {
+  var row = document.getElementById(containerId);
+  if (!row) return;
+  row.innerHTML = '<div class="row-notice'+(loading?' loading':'')+'"><div><strong>'+title+'</strong>'+(detail?'<span>'+detail+'</span>':'')+'</div></div>';
+}
+
+function rowQueued(containerId) {
+  rowNotice(containerId, 'Queued', 'This row loads as you scroll to protect first paint.', true);
+}
+
+function rowFailed(containerId) {
+  rowNotice(containerId, 'Could not load this row', 'TMDB did not return usable titles. Try refresh or check the API key.');
 }
 
 /* ── Browse overlay (See all) ─────────────────────── */
@@ -1975,10 +2260,10 @@ function skeletonRow(containerId, count) {
 }
 
 function fetchTrending() {
-  if (!TMDB_KEY) { document.getElementById('trendingRow').innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px 0">Add a TMDB key to see trending</div>'; return; }
+  if (!TMDB_KEY) { rowNotice('trendingRow', 'TMDB key required', 'Add your API key in Settings to load live rows.'); return; }
   skeletonRow('trendingRow', 10);
   tmdbFetch('/trending/all/week').then(function(data) {
-    if (!data || !data.results) return;
+    if (!data || !data.results) { rowFailed('trendingRow'); return; }
     var items = data.results.filter(function(r){ return r.media_type === 'movie' || r.media_type === 'tv'; }).slice(0, 20);
     document.getElementById('trendCount').textContent = items.length + ' this week';
     renderPosterRow(items, 'trendingRow', { numbered: true });
@@ -1986,10 +2271,10 @@ function fetchTrending() {
 }
 
 function fetchTopRated() {
-  if (!TMDB_KEY) return;
+  if (!TMDB_KEY) { rowNotice('topRatedRow', 'TMDB key required', 'Add your API key in Settings to load top rated movies.'); return; }
   skeletonRow('topRatedRow', 10);
   tmdbFetch('/movie/top_rated').then(function(data) {
-    if (!data || !data.results) return;
+    if (!data || !data.results) { rowFailed('topRatedRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
     document.getElementById('topRatedCount').textContent = 'all time';
     renderPosterRow(items, 'topRatedRow', {});
@@ -1997,10 +2282,10 @@ function fetchTopRated() {
 }
 
 function fetchNowPlaying() {
-  if (!TMDB_KEY) return;
+  if (!TMDB_KEY) { rowNotice('nowPlayingRow', 'TMDB key required', 'Add your API key in Settings to load theater releases.'); return; }
   skeletonRow('nowPlayingRow', 10);
   tmdbFetch('/movie/now_playing').then(function(data) {
-    if (!data || !data.results) return;
+    if (!data || !data.results) { rowFailed('nowPlayingRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
     document.getElementById('nowPlayingCount').textContent = items.length + ' in cinemas';
     renderPosterRow(items, 'nowPlayingRow', {});
@@ -2008,11 +2293,11 @@ function fetchNowPlaying() {
 }
 
 function fetch4K() {
-  if (!TMDB_KEY) return;
+  if (!TMDB_KEY) { rowNotice('uhdRow', 'TMDB key required', 'Add your API key in Settings to load Ultra HD picks.'); return; }
   skeletonRow('uhdRow', 10);
   // No 4K flag in TMDB. Approximate with recent high-popularity blockbusters most likely to have 4K sources.
   tmdbFetch('/discover/movie?sort_by=popularity.desc&primary_release_date.gte=2022-01-01&vote_count.gte=400&with_original_language=en').then(function(data) {
-    if (!data || !data.results) return;
+    if (!data || !data.results) { rowFailed('uhdRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
     document.getElementById('uhdCount').textContent = 'premium quality';
     renderPosterRow(items, 'uhdRow', {});
@@ -2020,11 +2305,11 @@ function fetch4K() {
 }
 
 function fetchBollywood() {
-  if (!TMDB_KEY) return;
+  if (!TMDB_KEY) { rowNotice('bollyRow', 'TMDB key required', 'Add your API key in Settings to load Bollywood picks.'); return; }
   skeletonRow('bollyRow', 10);
   // Hindi-language films, recent first
   tmdbFetch('/discover/movie?with_original_language=hi&sort_by=primary_release_date.desc&vote_count.gte=12&primary_release_date.lte=' + new Date().toISOString().slice(0,10)).then(function(data) {
-    if (!data || !data.results) return;
+    if (!data || !data.results) { rowFailed('bollyRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
     document.getElementById('bollyCount').textContent = 'fresh releases';
     renderPosterRow(items, 'bollyRow', {});
@@ -2032,11 +2317,11 @@ function fetchBollywood() {
 }
 
 function fetchPersian() {
-  if (!TMDB_KEY) return;
+  if (!TMDB_KEY) { rowNotice('persianRow', 'TMDB key required', 'Add your API key in Settings to load Persian cinema.'); return; }
   skeletonRow('persianRow', 10);
   // Persian / Farsi-language films, by popularity (smaller catalog, lower vote threshold)
   tmdbFetch('/discover/movie?with_original_language=fa&sort_by=popularity.desc&vote_count.gte=3').then(function(data) {
-    if (!data || !data.results) return;
+    if (!data || !data.results) { rowFailed('persianRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
     document.getElementById('persianCount').textContent = items.length + ' titles';
     renderPosterRow(items, 'persianRow', {});
@@ -2044,11 +2329,11 @@ function fetchPersian() {
 }
 
 function fetchAnime() {
-  if (!TMDB_KEY) return;
+  if (!TMDB_KEY) { rowNotice('animeRow', 'TMDB key required', 'Add your API key in Settings to load Anime.'); return; }
   skeletonRow('animeRow', 10);
   // Japanese animation TV (genre 16 = Animation)
   tmdbFetch('/discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc&vote_count.gte=50').then(function(data) {
-    if (!data || !data.results) return;
+    if (!data || !data.results) { rowFailed('animeRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
     document.getElementById('animeCount').textContent = 'top series';
     renderPosterRow(items, 'animeRow', {});
@@ -2056,11 +2341,11 @@ function fetchAnime() {
 }
 
 function fetchKDrama() {
-  if (!TMDB_KEY) return;
+  if (!TMDB_KEY) { rowNotice('kdramaRow', 'TMDB key required', 'Add your API key in Settings to load Korean Drama.'); return; }
   skeletonRow('kdramaRow', 10);
   // Korean-language TV
   tmdbFetch('/discover/tv?with_original_language=ko&sort_by=popularity.desc&vote_count.gte=40').then(function(data) {
-    if (!data || !data.results) return;
+    if (!data || !data.results) { rowFailed('kdramaRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
     document.getElementById('kdramaCount').textContent = 'top series';
     renderPosterRow(items, 'kdramaRow', {});
@@ -2344,6 +2629,7 @@ document.addEventListener('keydown', function(e) {
 function lazyLoad(anchorId, fn) {
   var el = document.getElementById(anchorId);
   if (!el || !('IntersectionObserver' in window)) { fn(); return; }
+  if (!el.children.length) rowQueued(anchorId);
   var io = new IntersectionObserver(function(entries) {
     if (entries[0].isIntersecting) { io.disconnect(); fn(); }
   }, { rootMargin: '700px 0px' });
@@ -2369,7 +2655,22 @@ lazyLoad('tvGrid',        function(){ renderPicks(TV, 'tv', 'tvGrid'); });
 // PWA service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('sw.js').catch(function(){});
+    navigator.serviceWorker.register('sw.js').then(function(reg) {
+      if (reg.waiting) reg.waiting.postMessage('skipWaiting');
+      reg.addEventListener('updatefound', function() {
+        var worker = reg.installing;
+        if (!worker) return;
+        worker.addEventListener('statechange', function() {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) worker.postMessage('skipWaiting');
+        });
+      });
+    }).catch(function(){});
+    var refreshed = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      if (refreshed) return;
+      refreshed = true;
+      location.reload();
+    });
   });
 }
 
