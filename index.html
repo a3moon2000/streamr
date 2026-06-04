@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Streamr</title>
+  <meta name="description" content="Stream movies and TV shows instantly.">
+  <meta name="theme-color" content="#1a1f29">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Streamr">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
   <style>
@@ -968,6 +977,32 @@
     <button class="scroll-arrow right" onclick="scrollRow('persianRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
 
+  <!-- Anime -->
+  <div class="sec-header">
+    <div class="sec-title">Anime</div>
+    <div class="sec-count" id="animeCount"></div>
+    <div class="sec-line"></div>
+    <div class="sec-seeall" onclick="openBrowse('anime')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+  </div>
+  <div class="scroll-wrap">
+    <button class="scroll-arrow left" onclick="scrollRow('animeRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="trending-row" id="animeRow"></div>
+    <button class="scroll-arrow right" onclick="scrollRow('animeRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </div>
+
+  <!-- K-Drama -->
+  <div class="sec-header">
+    <div class="sec-title">Korean Drama</div>
+    <div class="sec-count" id="kdramaCount"></div>
+    <div class="sec-line"></div>
+    <div class="sec-seeall" onclick="openBrowse('kdrama')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+  </div>
+  <div class="scroll-wrap">
+    <button class="scroll-arrow left" onclick="scrollRow('kdramaRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="trending-row" id="kdramaRow"></div>
+    <button class="scroll-arrow right" onclick="scrollRow('kdramaRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </div>
+
   <!-- Movies -->
   <div class="sec-header">
     <div class="sec-title">Popular Movies</div>
@@ -1618,7 +1653,9 @@ var browseCats = {
   nowplaying: { title:'In Theaters Now',    path:'/movie/now_playing', forceType:'movie' },
   uhd:        { title:'4K Ultra HD',        path:'/discover/movie?sort_by=popularity.desc&primary_release_date.gte=2022-01-01&vote_count.gte=400&with_original_language=en', forceType:'movie' },
   bolly:      { title:'Bollywood Latest',   path:'/discover/movie?with_original_language=hi&sort_by=primary_release_date.desc&vote_count.gte=12&primary_release_date.lte='+new Date().toISOString().slice(0,10), forceType:'movie' },
-  persian:    { title:'Persian Cinema',     path:'/discover/movie?with_original_language=fa&sort_by=popularity.desc&vote_count.gte=3', forceType:'movie' }
+  persian:    { title:'Persian Cinema',     path:'/discover/movie?with_original_language=fa&sort_by=popularity.desc&vote_count.gte=3', forceType:'movie' },
+  anime:      { title:'Anime',              path:'/discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc&vote_count.gte=50', forceType:'tv' },
+  kdrama:     { title:'Korean Drama',       path:'/discover/tv?with_original_language=ko&sort_by=popularity.desc&vote_count.gte=40', forceType:'tv' }
 };
 var browseKey = null, browsePageNum = 1, browseItems = [];
 
@@ -1735,6 +1772,30 @@ function fetchPersian() {
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
     document.getElementById('persianCount').textContent = items.length + ' titles';
     renderPosterRow(items, 'persianRow', {});
+  });
+}
+
+function fetchAnime() {
+  if (!TMDB_KEY) return;
+  skeletonRow('animeRow', 10);
+  // Japanese animation TV (genre 16 = Animation)
+  tmdbFetch('/discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc&vote_count.gte=50').then(function(data) {
+    if (!data || !data.results) return;
+    var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
+    document.getElementById('animeCount').textContent = 'top series';
+    renderPosterRow(items, 'animeRow', {});
+  });
+}
+
+function fetchKDrama() {
+  if (!TMDB_KEY) return;
+  skeletonRow('kdramaRow', 10);
+  // Korean-language TV
+  tmdbFetch('/discover/tv?with_original_language=ko&sort_by=popularity.desc&vote_count.gte=40').then(function(data) {
+    if (!data || !data.results) return;
+    var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
+    document.getElementById('kdramaCount').textContent = 'top series';
+    renderPosterRow(items, 'kdramaRow', {});
   });
 }
 
@@ -1932,6 +1993,15 @@ fetchNowPlaying();
 fetch4K();
 fetchBollywood();
 fetchPersian();
+fetchAnime();
+fetchKDrama();
+
+// PWA service worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+}
 
 </script>
 </body>
