@@ -9,6 +9,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -176,6 +177,39 @@
     .player-inner { position: relative; padding-top: 56.25%; }
     .player-wrap iframe {
       position: absolute; inset: 0; width: 100%; height: 100%; border: none;
+    }
+    .subtitle-overlay {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 76px;
+      z-index: 3;
+      display: none;
+      justify-content: center;
+      pointer-events: none;
+      direction: rtl;
+      text-align: center;
+      font-family: var(--sans);
+      font-size: clamp(18px, 4.8vw, 30px);
+      font-weight: 700;
+      line-height: 1.45;
+      color: oklch(98% 0.005 230);
+      text-shadow: 0 2px 3px oklch(0% 0 0 / 0.95), 0 0 16px oklch(0% 0 0 / 0.85);
+    }
+    .subtitle-overlay.on { display: flex; }
+    .subtitle-overlay span {
+      max-width: min(920px, 100%);
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: oklch(5% 0.004 245 / 0.42);
+    }
+    .subtitle-overlay.hint {
+      direction: ltr;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text2);
+      bottom: 20px;
+      text-shadow: none;
     }
     body.player-mode header,
     body.player-mode .quicknav {
@@ -1230,7 +1264,7 @@
         </div>
         <div class="pref-group">
           <span class="pref-label">Subs</span>
-          <select class="pref-select" id="subtitleLang" onchange="setSubtitleLang(this.value)" disabled>
+          <select class="pref-select" id="subtitleLang" onchange="setSubtitleLang(this.value)">
             <option value="fa" selected>Persian / Farsi</option>
             <option value="en">English</option>
             <option value="ar">Arabic</option>
@@ -1509,6 +1543,11 @@
       <div class="modal-hint">Free key from <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--accent)">themoviedb.org/settings/api</a>. Enables poster images and search.</div>
     </div>
     <div class="modal-field">
+      <label>SubDL API Key</label>
+      <input type="text" id="subdlKeyInput" placeholder="Enter your SubDL API key">
+      <div class="modal-hint">Used only for external Persian / Farsi subtitle overlay when the embedded player has no Farsi track.</div>
+    </div>
+    <div class="modal-field">
       <label>Hide Genres</label>
       <div class="genre-hide-grid" id="genreHideGrid"></div>
       <div class="modal-hint">Tap a genre to hide it everywhere on the app.</div>
@@ -1523,6 +1562,8 @@
 
 <script>
 var currentType = 'movie', currentColor = '0dcaf0', currentPlayerSource = 'vidking', currentSubtitleLang = 'fa', searchTimeout = null;
+var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
+var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
 
 var GRAD = [
   ['#1a1a2e','#16213e'],['#0f3460','#533483'],['#2d1b33','#1a0a0a'],['#0a2744','#1a4a7a'],
@@ -1742,8 +1783,6 @@ function buildUrl(id, type, s, e, progress) {
 
 function setPlayerSource(source) {
   currentPlayerSource = source;
-  var lang = document.getElementById('subtitleLang');
-  if (lang) lang.disabled = source !== 'vidsrc';
 }
 
 function setSubtitleLang(lang) {
@@ -1797,6 +1836,13 @@ function loadPlayer(id, type, s, e, progress, title) {
   iframe.setAttribute('allowfullscreen', 'true');
   iframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *');
   inner.appendChild(iframe);
+  var sub = document.createElement('div');
+  sub.className = 'subtitle-overlay';
+  sub.id = 'subtitleOverlay';
+  sub.innerHTML = '<span></span>';
+  inner.appendChild(sub);
+  externalSubtitles = [];
+  externalSubtitleLast = '';
 
   document.getElementById('playerWrap').classList.add('open');
   document.getElementById('ctrlBar').classList.add('on');
@@ -1815,10 +1861,14 @@ function loadPlayer(id, type, s, e, progress, title) {
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
   saveHistory(id, type, s, e, title || (type + ' #' + id), progress || 0, 0, 0);
+  loadExternalFarsiSubtitles(id, type, s, e);
 }
 
 function goHome() {
   document.getElementById('playerInner').innerHTML = '';
+  externalSubtitles = [];
+  externalSubtitleLast = '';
+  if (externalSubtitleTimer) { clearTimeout(externalSubtitleTimer); externalSubtitleTimer = null; }
   document.getElementById('playerInner').style.removeProperty('height');
   document.getElementById('playerInner').style.removeProperty('padding-top');
   document.documentElement.style.removeProperty('--player-mobile-height');
@@ -1833,6 +1883,157 @@ function goHome() {
 }
 window.addEventListener('resize', sizeMobilePlayer);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', sizeMobilePlayer);
+
+function showSubtitleHint(text) {
+  var el = document.getElementById('subtitleOverlay');
+  if (!el) return;
+  el.classList.add('on', 'hint');
+  el.querySelector('span').textContent = text;
+  if (externalSubtitleTimer) clearTimeout(externalSubtitleTimer);
+  externalSubtitleTimer = setTimeout(function(){
+    el.classList.remove('on', 'hint');
+    el.querySelector('span').textContent = '';
+  }, 4200);
+}
+
+function normalizeSubdlUrl(value) {
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  if (value.charAt(0) === '/') return 'https://dl.subdl.com' + value;
+  return 'https://dl.subdl.com/subtitle/' + value.replace(/^subtitle\//, '');
+}
+
+function pickSubtitleDownload(sub) {
+  var keys = ['url', 'download', 'download_link', 'subtitle_url', 'link', 'file', 'path'];
+  for (var i=0; i<keys.length; i++) {
+    if (sub && sub[keys[i]]) return normalizeSubdlUrl(sub[keys[i]]);
+  }
+  return '';
+}
+
+function collectSubdlDownloads(data, type, season, episode) {
+  var subtitles = (data && data.subtitles) || [];
+  var urls = [];
+  subtitles.forEach(function(sub) {
+    var files = sub.unpack_files || [];
+    files.forEach(function(file) {
+      if (type === 'tv') {
+        if (String(file.season || '') !== String(season || 1)) return;
+        if (String(file.episode || '') !== String(episode || 1)) return;
+      }
+      var fileUrl = pickSubtitleDownload(file);
+      if (fileUrl) urls.push(fileUrl);
+    });
+    var url = pickSubtitleDownload(sub);
+    if (url) urls.push(url);
+  });
+  return urls.filter(function(url, index, list){ return url && list.indexOf(url) === index; });
+}
+
+function withSubdlKey(url) {
+  if (!SUBDL_KEY) return url;
+  try {
+    var parsed = new URL(url);
+    if (parsed.hostname.indexOf('subdl.com') > -1) parsed.searchParams.set('api_key', SUBDL_KEY);
+    return parsed.toString();
+  } catch (err) {
+    return url;
+  }
+}
+
+function decodeSubtitleBuffer(buf) {
+  var utf = new TextDecoder('utf-8').decode(buf);
+  if (utf.indexOf('\uFFFD') === -1) return utf;
+  try {
+    return new TextDecoder('windows-1256').decode(buf);
+  } catch (err) {
+    return utf;
+  }
+}
+
+function extractSubtitleText(buf) {
+  return JSZip.loadAsync(buf).then(function(zip) {
+    var file = Object.keys(zip.files).find(function(name){ return /\.(srt|vtt)$/i.test(name); });
+    if (!file) throw new Error('Subtitle archive has no SRT/VTT file');
+    return zip.files[file].async('uint8array').then(decodeSubtitleBuffer);
+  }).catch(function() {
+    return decodeSubtitleBuffer(buf);
+  });
+}
+
+function parseTimecode(t) {
+  var m = String(t).trim().match(/(\d+):(\d+):(\d+)[,.](\d+)/);
+  if (!m) return 0;
+  return (+m[1])*3600 + (+m[2])*60 + (+m[3]) + (+m[4])/1000;
+}
+
+function parseSrt(text) {
+  return String(text || '').replace(/\r/g, '').split(/\n\s*\n/).map(function(block) {
+    var lines = block.split('\n').filter(Boolean);
+    var timeLine = lines.find(function(l){ return l.indexOf('-->') > -1; });
+    if (!timeLine) return null;
+    var parts = timeLine.split('-->');
+    var body = lines.slice(lines.indexOf(timeLine) + 1).join('\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\{\\.*?\}/g, '')
+      .trim();
+    if (!body) return null;
+    return { start: parseTimecode(parts[0]), end: parseTimecode(parts[1]), text: body };
+  }).filter(Boolean);
+}
+
+function updateExternalSubtitle(seconds) {
+  var el = document.getElementById('subtitleOverlay');
+  if (!el || !externalSubtitles.length) return;
+  var active = externalSubtitles.find(function(s){ return seconds >= s.start && seconds <= s.end; });
+  var text = active ? active.text : '';
+  if (text === externalSubtitleLast) return;
+  externalSubtitleLast = text;
+  el.classList.toggle('on', !!text);
+  el.classList.remove('hint');
+  el.querySelector('span').textContent = text;
+}
+
+function loadExternalFarsiSubtitles(id, type, season, episode) {
+  if (currentSubtitleLang !== 'fa') return;
+  if (!SUBDL_KEY) {
+    showSubtitleHint('Add a SubDL key in Settings for Farsi overlay subtitles');
+    return;
+  }
+  if (!window.JSZip) {
+    showSubtitleHint('Subtitle unzipper did not load');
+    return;
+  }
+  showSubtitleHint('Loading Farsi subtitles...');
+  var params = new URLSearchParams();
+  params.set('api_key', SUBDL_KEY);
+  params.set('tmdb_id', id);
+  params.set('type', type === 'tv' ? 'tv' : 'movie');
+  params.set('languages', 'FA');
+  params.set('subs_per_page', '5');
+  params.set('unpack', '1');
+  if (type === 'tv') {
+    params.set('season_number', season || 1);
+    params.set('episode_number', episode || 1);
+  }
+  fetch('https://api.subdl.com/api/v1/subtitles?' + params.toString(), { headers: { Accept: 'application/json' } })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      var urls = collectSubdlDownloads(data, type, season, episode);
+      if (!urls.length) throw new Error('No Farsi subtitles found');
+      return fetch(withSubdlKey(urls[0])).then(function(r){ return r.arrayBuffer(); });
+    })
+    .then(extractSubtitleText)
+    .then(function(text) {
+      externalSubtitles = parseSrt(text);
+      if (!externalSubtitles.length) throw new Error('Subtitle file could not be parsed');
+      showSubtitleHint('Farsi subtitles loaded');
+    })
+    .catch(function(err) {
+      externalSubtitles = [];
+      showSubtitleHint(err.message || 'Farsi subtitles failed to load');
+    });
+}
 
 /* Progress tracking */
 window.addEventListener('message', function(ev) {
@@ -1856,6 +2057,7 @@ window.addEventListener('message', function(ev) {
       pct.textContent = p.toFixed(1) + '%';
       fill.style.width = Math.min(100, p) + '%';
       var id = document.getElementById('tmdbId').value;
+      updateExternalSubtitle(current);
       if (id && current > 5) {
         saveHistory(id, currentType, document.getElementById('season').value, document.getElementById('episode').value, null, current, duration, p);
       }
@@ -2044,7 +2246,9 @@ function toggleGenreHide(gid, el) {
   else { HIDDEN_GENRES.push(gid); el.classList.add('hidden-on'); }
 }
 function openSettings() {
+  SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || SUBDL_KEY || '';
   document.getElementById('tmdbKeyInput').value = TMDB_KEY;
+  document.getElementById('subdlKeyInput').value = SUBDL_KEY;
   renderGenreHideChips();
   document.getElementById('settingsModal').classList.add('on');
 }
@@ -2059,8 +2263,13 @@ function refreshAllRows() {
 }
 function saveSettings() {
   var key = document.getElementById('tmdbKeyInput').value.trim();
+  var subdlKey = document.getElementById('subdlKeyInput').value.trim();
   TMDB_KEY = key;
-  localStorage.setItem('streamr_tmdb_key', key);
+  SUBDL_KEY = subdlKey;
+  if (key) localStorage.setItem('streamr_tmdb_key', key);
+  else localStorage.removeItem('streamr_tmdb_key');
+  if (subdlKey) localStorage.setItem('streamr_subdl_key', subdlKey);
+  else localStorage.removeItem('streamr_subdl_key');
   localStorage.setItem('streamr_hidden_genres', JSON.stringify(HIDDEN_GENRES));
   closeSettings();
   refreshAllRows();
@@ -2100,7 +2309,8 @@ function clearData() {
   if (confirm('Clear all watch history and cached data?')) {
     localStorage.removeItem(HK); localStorage.removeItem('streamr_posters_v2');
     localStorage.removeItem('streamr_meta_v1'); localStorage.removeItem('streamr_tmdb_key');
-    TMDB_KEY = ''; posterCache = {}; metaCache = {};
+    localStorage.removeItem('streamr_subdl_key');
+    TMDB_KEY = ''; SUBDL_KEY = ''; posterCache = {}; metaCache = {};
     closeSettings(); location.reload();
   }
 }
