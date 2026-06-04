@@ -1071,6 +1071,7 @@
     <div class="sec-title">Popular Movies</div>
     <div class="sec-count">12 titles</div>
     <div class="sec-line"></div>
+    <div class="sec-seeall" onclick="openBrowse('popmovies')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
   </div>
   <div class="genre-tabs" id="movieGenreTabs">
     <button class="genre-tab active" onclick="filterGenre('movie', 0, this)">All</button>
@@ -1087,6 +1088,7 @@
     <div class="sec-title">Popular TV Shows</div>
     <div class="sec-count">12 titles</div>
     <div class="sec-line"></div>
+    <div class="sec-seeall" onclick="openBrowse('poptv')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
   </div>
   <div class="genre-tabs" id="tvGenreTabs">
     <button class="genre-tab active" onclick="filterGenre('tv', 0, this)">All</button>
@@ -1794,7 +1796,9 @@ var browseCats = {
   bolly:      { title:'Bollywood Latest',   path:'/discover/movie?with_original_language=hi&sort_by=primary_release_date.desc&vote_count.gte=12&primary_release_date.lte='+new Date().toISOString().slice(0,10), forceType:'movie' },
   persian:    { title:'Persian Cinema',     path:'/discover/movie?with_original_language=fa&sort_by=popularity.desc&vote_count.gte=3', forceType:'movie' },
   anime:      { title:'Anime',              path:'/discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc&vote_count.gte=50', forceType:'tv' },
-  kdrama:     { title:'Korean Drama',       path:'/discover/tv?with_original_language=ko&sort_by=popularity.desc&vote_count.gte=40', forceType:'tv' }
+  kdrama:     { title:'Korean Drama',       path:'/discover/tv?with_original_language=ko&sort_by=popularity.desc&vote_count.gte=40', forceType:'tv' },
+  popmovies:  { title:'Popular Movies',     path:'/discover/movie?sort_by=popularity.desc&vote_count.gte=150&without_genres=27', forceType:'movie' },
+  poptv:      { title:'Popular TV Shows',   path:'/discover/tv?sort_by=popularity.desc&vote_count.gte=100', forceType:'tv' }
 };
 var browseKey = null, browsePageNum = 1, browseItems = [];
 
