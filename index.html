@@ -2251,10 +2251,24 @@ function openPerson(id, name) {
       ? '<img class="person-photo" src="'+TMDB_IMG+'w185'+p.profile_path+'" alt="">'
       : '<div class="person-photo-ph">&#128100;</div>';
     var bio = p.biography ? p.biography.split('\n')[0] : '';
+    var JUNK_GENRES = [10767, 10763, 10764]; // talk, news, reality
     var credits = (p.combined_credits && p.combined_credits.cast ? p.combined_credits.cast : [])
-      .filter(function(c){ return c.poster_path && (c.media_type==='movie'||c.media_type==='tv'); });
+      .filter(function(c){
+        if (!c.poster_path) return false;
+        if (c.media_type !== 'movie' && c.media_type !== 'tv') return false;
+        var ch = (c.character || '').toLowerCase();
+        if (ch.indexOf('self') > -1 || ch.indexOf('himself') > -1 || ch.indexOf('herself') > -1 || ch.indexOf('archive') > -1 || ch.indexOf('uncredited') > -1) return false;
+        var gids = c.genre_ids || [];
+        if (gids.some(function(g){ return JUNK_GENRES.indexOf(g) > -1; })) return false;
+        return true;
+      });
     var seen = {}, uniq = [];
-    credits.sort(function(a,b){ return (b.popularity||0)-(a.popularity||0); });
+    // rank by vote_count (real popularity) then popularity, so notable roles surface
+    credits.sort(function(a,b){
+      var av = (a.vote_count||0), bv = (b.vote_count||0);
+      if (bv !== av) return bv - av;
+      return (b.popularity||0) - (a.popularity||0);
+    });
     credits.forEach(function(c){ var k=c.media_type+'_'+c.id; if(!seen[k]){ seen[k]=1; uniq.push(c); } });
     uniq = dropHidden(uniq).slice(0, 18);
 
