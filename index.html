@@ -1015,7 +1015,6 @@
     <button class="genre-tab" onclick="filterGenre('movie', 35, this)">Comedy</button>
     <button class="genre-tab" onclick="filterGenre('movie', 18, this)">Drama</button>
     <button class="genre-tab" onclick="filterGenre('movie', 878, this)">Sci-Fi</button>
-    <button class="genre-tab" onclick="filterGenre('movie', 27, this)">Horror</button>
     <button class="genre-tab" onclick="filterGenre('movie', 12, this)">Adventure</button>
   </div>
   <div class="picks-grid" id="movieGrid"></div>
@@ -1146,6 +1145,16 @@ function fmt(sec) {
 }
 function esc(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 
+// Hidden genres (27 = Horror)
+var HIDDEN_GENRES = [27];
+function dropHidden(items) {
+  if (!items) return items;
+  return items.filter(function(r){
+    var g = r.genre_ids || (r.genres ? r.genres.map(function(x){return x.id;}) : []);
+    return !g.some(function(id){ return HIDDEN_GENRES.indexOf(id) > -1; });
+  });
+}
+
 /* TMDB */
 var TMDB_KEY = localStorage.getItem('streamr_tmdb_key') || 'bc06df796c91d810053d9f51888efcb9';
 var TMDB_IMG = 'https://image.tmdb.org/t/p/';
@@ -1210,7 +1219,7 @@ function doSearch(query, resultsEl) {
   if (query.length < 2) { resultsEl.classList.remove('on'); return; }
   tmdbFetch('/search/multi?query=' + encodeURIComponent(query) + '&include_adult=false').then(function(data) {
     if (!data || !data.results) return;
-    var items = data.results.filter(function(r){ return r.media_type === 'movie' || r.media_type === 'tv'; }).slice(0, 8);
+    var items = dropHidden(data.results.filter(function(r){ return r.media_type === 'movie' || r.media_type === 'tv'; })).slice(0, 8);
     if (items.length === 0) {
       resultsEl.innerHTML = '<div class="sr-empty">No results found</div>';
     } else {
@@ -1504,7 +1513,7 @@ function filterGenre(type, genreId, btn) {
   }
   var grid = document.getElementById(gridId);
   grid.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px 0">Loading...</div>';
-  tmdbFetch('/discover/'+type+'?with_genres='+genreId+'&sort_by=popularity.desc&vote_count.gte=100').then(function(data) {
+  tmdbFetch('/discover/'+type+'?with_genres='+genreId+'&without_genres=27&sort_by=popularity.desc&vote_count.gte=100').then(function(data) {
     if (!data || !data.results) return;
     var items = data.results.slice(0, 12).map(function(r) {
       return { id: r.id, title: r.title || r.name, year: (r.release_date || r.first_air_date || '').substring(0,4), icon: '&#127909;' };
@@ -1560,9 +1569,9 @@ var spotlightSlides = [], spotIndex = 0, spotTimer = null;
 function renderSpotlight() {
   tmdbFetch('/trending/all/week').then(function(data) {
     if (!data || !data.results) return;
-    spotlightSlides = data.results.filter(function(r){
+    spotlightSlides = dropHidden(data.results.filter(function(r){
       return (r.media_type === 'movie' || r.media_type === 'tv') && r.backdrop_path && r.overview;
-    }).slice(0, 6);
+    })).slice(0, 6);
     if (spotlightSlides.length === 0) return;
     // Dots
     var dots = document.getElementById('spotlightDots');
@@ -1641,6 +1650,7 @@ function posterCardHTML(item, i, opts) {
 
 function renderPosterRow(items, containerId, opts) {
   opts = opts || {};
+  items = dropHidden(items);
   var row = document.getElementById(containerId);
   if (!items || items.length === 0) { row.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px 0">Nothing here yet</div>'; return; }
   row.innerHTML = items.map(function(item, i) { return posterCardHTML(item, i, opts); }).join('');
@@ -1681,9 +1691,9 @@ function loadBrowsePage() {
   tmdbFetch(path).then(function(data) {
     if (browsePageNum === 1) document.getElementById('browseGrid').innerHTML = '';
     if (!data || !data.results) { btn.style.display='none'; return; }
-    var items = data.results.filter(function(r){
+    var items = dropHidden(data.results.filter(function(r){
       return (r.media_type === 'movie' || r.media_type === 'tv' || cat.forceType) && r.poster_path;
-    }).map(function(r){ if (cat.forceType) r.media_type = cat.forceType; return r; });
+    })).map(function(r){ if (cat.forceType) r.media_type = cat.forceType; return r; });
     var grid = document.getElementById('browseGrid');
     grid.insertAdjacentHTML('beforeend', items.map(function(item, i){ return posterCardHTML(item, i, {}); }).join(''));
     browseItems = browseItems.concat(items);
@@ -1864,7 +1874,7 @@ function openDetail(id, type, title) {
             || vids.filter(function(v){ return v.site==='YouTube'; })[0];
       if (tr) trailerKey = tr.key;
     }
-    var recos = (d.recommendations && d.recommendations.results ? d.recommendations.results : [])
+    var recos = dropHidden(d.recommendations && d.recommendations.results ? d.recommendations.results : [])
       .filter(function(r){ return r.poster_path; }).slice(0, 14);
 
     // cache meta
