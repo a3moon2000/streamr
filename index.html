@@ -1384,6 +1384,18 @@
     <button class="scroll-arrow right" onclick="scrollRow('featuredRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
 
+  <!-- Mind Bending -->
+  <div class="sec-header">
+    <div class="sec-title">Mind Bending</div>
+    <div class="sec-count" id="mindCount"></div>
+    <div class="sec-line"></div>
+  </div>
+  <div class="scroll-wrap">
+    <button class="scroll-arrow left" onclick="scrollRow('mindRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="trending-row" id="mindRow"></div>
+    <button class="scroll-arrow right" onclick="scrollRow('mindRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </div>
+
   <!-- Trending -->
   <div class="sec-header scroll-anchor" id="navTrending">
     <div class="sec-title">Trending This Week</div>
@@ -1643,6 +1655,25 @@ var FEATURED = [
   { id:1396,    type:'tv',    title:'Breaking Bad',        year:2008 },
   { id:157336,  type:'movie', title:'Interstellar',        year:2014 },
   { id:76479,   type:'tv',    title:'The Boys',            year:2019 },
+];
+
+var MIND_BENDING = [
+  { id:27205,  type:'movie', title:'Inception',                 year:2010 },
+  { id:157336, type:'movie', title:'Interstellar',              year:2014 },
+  { id:335984, type:'movie', title:'Blade Runner 2049',         year:2017 },
+  { id:264660, type:'movie', title:'Ex Machina',                year:2015 },
+  { id:38,     type:'movie', title:'Eternal Sunshine',          year:2004 },
+  { id:63,     type:'movie', title:'Twelve Monkeys',            year:1995 },
+  { id:77,     type:'movie', title:'Memento',                   year:2000 },
+  { id:62,     type:'movie', title:'2001: A Space Odyssey',     year:1968 },
+  { id:78,     type:'movie', title:'Blade Runner',              year:1982 },
+  { id:152601, type:'movie', title:'Her',                       year:2013 },
+  { id:42009,  type:'tv',    title:'Black Mirror',              year:2011 },
+  { id:60625,  type:'tv',    title:'Rick and Morty',            year:2013 },
+  { id:70523,  type:'tv',    title:'Dark',                      year:2017 },
+  { id:95396,  type:'tv',    title:'Severance',                 year:2022 },
+  { id:63247,  type:'tv',    title:'Westworld',                 year:2016 },
+  { id:62560,  type:'tv',    title:'Mr. Robot',                 year:2015 },
 ];
 
 /* Helpers */
@@ -2454,6 +2485,7 @@ function closeSettings() { document.getElementById('settingsModal').classList.re
 function refreshAllRows() {
   if (!TMDB_KEY) return;
   renderSpotlight(); renderFeatured();
+  renderMindBending();
   renderPicks(MOVIES, 'movie', 'movieGrid'); renderPicks(TV, 'tv', 'tvGrid');
   renderMyList();
   fetchTrending(); fetchTopRated(); fetchNowPlaying();
@@ -2612,6 +2644,11 @@ function renderPosterRow(items, containerId, opts) {
   var row = document.getElementById(containerId);
   if (!items || items.length === 0) { rowNotice(containerId, 'Nothing matched', 'Try another sort or loosen hidden genres.'); return; }
   row.innerHTML = items.map(function(item, i) { return posterCardHTML(item, i, opts); }).join('');
+}
+
+function renderMindBending() {
+  renderPosterRow(MIND_BENDING, 'mindRow', {});
+  document.getElementById('mindCount').textContent = MIND_BENDING.length + ' picks';
 }
 
 function rowNotice(containerId, title, detail, loading) {
@@ -3105,6 +3142,7 @@ function lazyLoad(anchorId, fn) {
 /* Init - above-the-fold immediately, the rest stream in on scroll */
 renderSpotlight();
 renderFeatured();
+renderMindBending();
 renderCW();
 renderMyList();
 fetchTrending();
