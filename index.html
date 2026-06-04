@@ -274,42 +274,6 @@
     .prog-strip.on { height: 28px; opacity: 1; }
     .prog-bar-wrap { flex: 1; max-width: 280px; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
     .prog-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 1s linear; }
-    .subtitle-tools {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 32px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      color: var(--text2);
-      font-size: 12px;
-    }
-    .subtitle-tools.on { display: flex; }
-    .sub-tool-btn {
-      height: 30px;
-      padding: 0 10px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--surface2);
-      color: var(--text2);
-      font-family: var(--sans);
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .sub-tool-btn.primary { background: var(--accent); border-color: var(--accent); color: oklch(10% 0 0); }
-    .sub-tool-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    .sub-tool-status {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: var(--muted);
-      font-family: var(--mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
 
     /* Skeleton shimmer */
     .skel {
@@ -1081,18 +1045,6 @@
       .ctrl-inner { flex-direction: column; align-items: flex-start; }
       .settings { margin-left: 0; }
       .prog-strip { padding: 0 16px; }
-      .subtitle-tools {
-        padding: 10px 16px;
-        display: none;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-      }
-      .subtitle-tools.on { display: grid; }
-      .sub-tool-status {
-        grid-column: 1 / -1;
-        order: -1;
-      }
-      .sub-tool-btn { width: 100%; padding: 0 8px; }
       .player-title-bar { padding: 10px 16px; gap: 8px; }
       .ptb-actions { gap: 6px; }
       .ptb-provider { display: none; }
@@ -1307,15 +1259,6 @@
     <span id="progTime"></span>
     <div class="prog-bar-wrap"><div class="prog-bar-fill" id="progFill" style="width:0%"></div></div>
     <span id="progPct"></span>
-  </div>
-  <div class="subtitle-tools" id="subtitleTools">
-    <button class="sub-tool-btn primary" onclick="openFarsiSubtitleSearch()">Find Farsi</button>
-    <button class="sub-tool-btn" onclick="document.getElementById('subtitleFile').click()">Upload .srt</button>
-    <button class="sub-tool-btn" id="subClockBtn" onclick="toggleSubtitleClock()" disabled>Start subs</button>
-    <button class="sub-tool-btn" id="subBackBtn" onclick="syncSubtitle(-2)" disabled>-2s</button>
-    <button class="sub-tool-btn" id="subForwardBtn" onclick="syncSubtitle(2)" disabled>+2s</button>
-    <span class="sub-tool-status" id="subtitleStatus">Upload Farsi .srt or add SubDL key</span>
-    <input type="file" id="subtitleFile" accept=".srt,.vtt,text/plain" style="display:none" onchange="handleSubtitleUpload(this)">
   </div>
   <div class="ctrl-bar" id="ctrlBar">
     <div class="ctrl-inner">
@@ -1968,7 +1911,6 @@ function loadPlayer(id, type, s, e, progress, title) {
 
   document.getElementById('playerWrap').classList.add('open');
   document.getElementById('ctrlBar').classList.add('on');
-  document.getElementById('subtitleTools').classList.add('on');
   document.body.classList.add('player-mode');
   sizeMobilePlayer();
   document.getElementById('heroSection').style.display = 'none';
@@ -2000,7 +1942,6 @@ function goHome() {
   document.documentElement.style.removeProperty('--player-mobile-height');
   document.getElementById('playerWrap').classList.remove('open');
   document.getElementById('ctrlBar').classList.remove('on');
-  document.getElementById('subtitleTools').classList.remove('on');
   document.body.classList.remove('player-mode');
   document.getElementById('heroSection').style.display = '';
   document.getElementById('playerTitleBar').classList.remove('on');
