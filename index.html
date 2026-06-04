@@ -119,6 +119,48 @@
     .hdr-btn:hover { border-color: var(--accent); color: var(--accent); }
     .hdr-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
 
+    /* Install button */
+    .install-btn {
+      display: none; align-items: center; gap: 6px;
+      height: 34px; padding: 0 14px; border-radius: 8px;
+      background: var(--accent); border: none; color: oklch(12% 0 0);
+      font-family: var(--sans); font-size: 13px; font-weight: 600;
+      cursor: pointer; flex-shrink: 0; transition: opacity 150ms;
+    }
+    .install-btn.on { display: inline-flex; }
+    .install-btn:hover { opacity: 0.88; }
+    .install-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+    /* Quick nav pills */
+    .quicknav {
+      position: sticky; top: 56px; z-index: 90;
+      background: oklch(22% 0.016 255 / 0.86); backdrop-filter: blur(16px) saturate(1.3);
+      border-bottom: 1px solid oklch(28% 0.012 255 / 0.6);
+      display: flex; gap: 8px; padding: 10px 32px;
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .quicknav::-webkit-scrollbar { display: none; }
+    .qn-pill {
+      flex-shrink: 0; padding: 6px 14px; border-radius: 18px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text2); font-family: var(--sans); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 150ms; white-space: nowrap;
+    }
+    .qn-pill:hover { border-color: var(--text2); color: var(--text); }
+    .qn-pill.active { background: var(--accent); border-color: var(--accent); color: oklch(12% 0 0); }
+    .scroll-anchor { scroll-margin-top: 112px; }
+
+    /* Settings genre chips */
+    .genre-hide-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+    .ghide-chip {
+      padding: 6px 12px; border-radius: 16px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--surface2);
+      color: var(--text2); font-size: 12px; font-weight: 500;
+      transition: all 140ms; user-select: none;
+    }
+    .ghide-chip:hover { border-color: var(--text2); }
+    .ghide-chip.hidden-on { background: oklch(60% 0.2 25 / 0.18); border-color: oklch(62% 0.2 25); color: oklch(78% 0.14 25); }
+
     /* Player */
     .player-section { position: relative; }
     .player-wrap {
@@ -796,10 +838,26 @@
 
   <div class="spacer"></div>
 
+  <button class="install-btn" id="installBtn" onclick="installApp()" title="Install Streamr">
+    <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Install
+  </button>
+
   <div class="hdr-btn" onclick="openSettings()" title="Settings">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
   </div>
 </header>
+
+<!-- Quick nav -->
+<nav class="quicknav" id="quicknav">
+  <button class="qn-pill active" onclick="navTo('top',this)">Home</button>
+  <button class="qn-pill" onclick="navTo('navTrending',this)">Trending</button>
+  <button class="qn-pill" onclick="navTo('navMovies',this)">Movies</button>
+  <button class="qn-pill" onclick="navTo('navTV',this)">TV Shows</button>
+  <button class="qn-pill" onclick="navTo('navAnime',this)">Anime</button>
+  <button class="qn-pill" onclick="navTo('navKdrama',this)">K-Drama</button>
+  <button class="qn-pill" onclick="navTo('navWorld',this)">World</button>
+  <button class="qn-pill" id="qnMyList" style="display:none" onclick="navTo('navMyList',this)">My List</button>
+</nav>
 
 <!-- Player section (hidden until play) -->
 <div class="player-section">
@@ -875,7 +933,7 @@
 
   <!-- My List -->
   <div id="myListSection" style="display:none">
-    <div class="sec-header">
+    <div class="sec-header scroll-anchor" id="navMyList">
       <div class="sec-title">My List</div>
       <div class="sec-count" id="myListCount"></div>
       <div class="sec-line"></div>
@@ -900,7 +958,7 @@
   </div>
 
   <!-- Trending -->
-  <div class="sec-header">
+  <div class="sec-header scroll-anchor" id="navTrending">
     <div class="sec-title">Trending This Week</div>
     <div class="sec-count" id="trendCount"></div>
     <div class="sec-line"></div>
@@ -952,7 +1010,7 @@
   </div>
 
   <!-- Bollywood -->
-  <div class="sec-header">
+  <div class="sec-header scroll-anchor" id="navWorld">
     <div class="sec-title">Bollywood Latest</div>
     <div class="sec-count" id="bollyCount"></div>
     <div class="sec-line"></div>
@@ -978,7 +1036,7 @@
   </div>
 
   <!-- Anime -->
-  <div class="sec-header">
+  <div class="sec-header scroll-anchor" id="navAnime">
     <div class="sec-title">Anime</div>
     <div class="sec-count" id="animeCount"></div>
     <div class="sec-line"></div>
@@ -991,7 +1049,7 @@
   </div>
 
   <!-- K-Drama -->
-  <div class="sec-header">
+  <div class="sec-header scroll-anchor" id="navKdrama">
     <div class="sec-title">Korean Drama</div>
     <div class="sec-count" id="kdramaCount"></div>
     <div class="sec-line"></div>
@@ -1004,7 +1062,7 @@
   </div>
 
   <!-- Movies -->
-  <div class="sec-header">
+  <div class="sec-header scroll-anchor" id="navMovies">
     <div class="sec-title">Popular Movies</div>
     <div class="sec-count">12 titles</div>
     <div class="sec-line"></div>
@@ -1020,7 +1078,7 @@
   <div class="picks-grid" id="movieGrid"></div>
 
   <!-- TV -->
-  <div class="sec-header">
+  <div class="sec-header scroll-anchor" id="navTV">
     <div class="sec-title">Popular TV Shows</div>
     <div class="sec-count">12 titles</div>
     <div class="sec-line"></div>
@@ -1078,6 +1136,11 @@
       <label>TMDB API Key</label>
       <input type="text" id="tmdbKeyInput" placeholder="Enter your TMDB API key">
       <div class="modal-hint">Free key from <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--accent)">themoviedb.org/settings/api</a>. Enables poster images and search.</div>
+    </div>
+    <div class="modal-field">
+      <label>Hide Genres</label>
+      <div class="genre-hide-grid" id="genreHideGrid"></div>
+      <div class="modal-hint">Tap a genre to hide it everywhere on the app.</div>
     </div>
     <div class="modal-actions">
       <button class="modal-btn primary" onclick="saveSettings()">Save</button>
@@ -1145,8 +1208,16 @@ function fmt(sec) {
 }
 function esc(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 
-// Hidden genres (27 = Horror)
-var HIDDEN_GENRES = [27];
+// Hidden genres (default: 27 = Horror). User-controllable, persisted.
+var GENRE_OPTIONS = [
+  {id:27,name:'Horror'},{id:28,name:'Action'},{id:35,name:'Comedy'},{id:18,name:'Drama'},
+  {id:10749,name:'Romance'},{id:878,name:'Sci-Fi'},{id:53,name:'Thriller'},{id:16,name:'Animation'},
+  {id:99,name:'Documentary'},{id:10751,name:'Family'},{id:80,name:'Crime'},{id:9648,name:'Mystery'},
+  {id:14,name:'Fantasy'},{id:36,name:'History'},{id:10752,name:'War'},{id:37,name:'Western'}
+];
+var HIDDEN_GENRES;
+try { HIDDEN_GENRES = JSON.parse(localStorage.getItem('streamr_hidden_genres')); } catch(e) {}
+if (!HIDDEN_GENRES) HIDDEN_GENRES = [27];
 function dropHidden(items) {
   if (!items) return items;
   return items.filter(function(r){
@@ -1530,18 +1601,71 @@ function quickPlay(id, type, title) {
 }
 
 /* Settings */
+function renderGenreHideChips() {
+  var grid = document.getElementById('genreHideGrid');
+  grid.innerHTML = GENRE_OPTIONS.map(function(g){
+    var on = HIDDEN_GENRES.indexOf(g.id) > -1;
+    return '<div class="ghide-chip'+(on?' hidden-on':'')+'" data-gid="'+g.id+'" onclick="toggleGenreHide('+g.id+',this)">'+g.name+'</div>';
+  }).join('');
+}
+function toggleGenreHide(gid, el) {
+  var i = HIDDEN_GENRES.indexOf(gid);
+  if (i > -1) { HIDDEN_GENRES.splice(i,1); el.classList.remove('hidden-on'); }
+  else { HIDDEN_GENRES.push(gid); el.classList.add('hidden-on'); }
+}
 function openSettings() {
   document.getElementById('tmdbKeyInput').value = TMDB_KEY;
+  renderGenreHideChips();
   document.getElementById('settingsModal').classList.add('on');
 }
 function closeSettings() { document.getElementById('settingsModal').classList.remove('on'); }
+function refreshAllRows() {
+  if (!TMDB_KEY) return;
+  renderSpotlight(); renderFeatured();
+  renderPicks(MOVIES, 'movie', 'movieGrid'); renderPicks(TV, 'tv', 'tvGrid');
+  renderMyList();
+  fetchTrending(); fetchTopRated(); fetchNowPlaying();
+  fetch4K(); fetchBollywood(); fetchPersian(); fetchAnime(); fetchKDrama();
+}
 function saveSettings() {
   var key = document.getElementById('tmdbKeyInput').value.trim();
   TMDB_KEY = key;
   localStorage.setItem('streamr_tmdb_key', key);
+  localStorage.setItem('streamr_hidden_genres', JSON.stringify(HIDDEN_GENRES));
   closeSettings();
-  if (key) { renderFeatured(); renderPicks(MOVIES, 'movie', 'movieGrid'); renderPicks(TV, 'tv', 'tvGrid'); }
+  refreshAllRows();
+  showToast('Settings saved');
 }
+
+/* Quick nav */
+function navTo(id, pill) {
+  document.querySelectorAll('.qn-pill').forEach(function(p){ p.classList.remove('active'); });
+  if (pill) pill.classList.add('active');
+  if (id === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  var el = document.getElementById(id);
+  if (!el) return;
+  var y = el.getBoundingClientRect().top + window.pageYOffset - 104;
+  window.scrollTo({ top: y, behavior: 'smooth' });
+}
+
+/* PWA install */
+var deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault(); deferredPrompt = e;
+  document.getElementById('installBtn').classList.add('on');
+});
+function installApp() {
+  if (!deferredPrompt) { showToast('Use your browser menu: Add to Home Screen'); return; }
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.finally(function(){
+    deferredPrompt = null;
+    document.getElementById('installBtn').classList.remove('on');
+  });
+}
+window.addEventListener('appinstalled', function(){
+  document.getElementById('installBtn').classList.remove('on');
+  showToast('Streamr installed');
+});
 function clearData() {
   if (confirm('Clear all watch history and cached data?')) {
     localStorage.removeItem(HK); localStorage.removeItem('streamr_posters_v2');
@@ -1836,8 +1960,10 @@ function toggleFav(id, type, title) {
 function renderMyList() {
   var list = getList();
   var sec = document.getElementById('myListSection');
-  if (list.length === 0) { sec.style.display = 'none'; return; }
+  var pill = document.getElementById('qnMyList');
+  if (list.length === 0) { sec.style.display = 'none'; if (pill) pill.style.display = 'none'; return; }
   sec.style.display = 'block';
+  if (pill) pill.style.display = '';
   document.getElementById('myListCount').textContent = list.length + ' saved';
   renderPosterRow(list, 'myListRow', {});
 }
