@@ -239,7 +239,20 @@
       border-bottom: 1px solid var(--border);
     }
     .player-title-bar.on { display: flex; }
-    .ptb-title { font-size: 14px; font-weight: 600; flex: 1; }
+    .ptb-title { font-size: 14px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ptb-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .ptb-source {
+      height: 28px; padding: 0 10px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--surface2);
+      color: var(--text2); font-family: var(--sans);
+      font-size: 12px; font-weight: 700; cursor: pointer;
+      transition: color 120ms, border-color 120ms, background 120ms;
+    }
+    .ptb-source:hover { color: var(--accent); border-color: var(--accent); background: var(--surface3); }
+    .ptb-provider {
+      font-family: var(--mono); font-size: 10px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+    }
     .ptb-close {
       width: 28px; height: 28px; border-radius: 6px;
       background: var(--surface2); border: none;
@@ -1032,7 +1045,10 @@
       .ctrl-inner { flex-direction: column; align-items: flex-start; }
       .settings { margin-left: 0; }
       .prog-strip { padding: 0 16px; }
-      .player-title-bar { padding: 10px 16px; }
+      .player-title-bar { padding: 10px 16px; gap: 8px; }
+      .ptb-actions { gap: 6px; }
+      .ptb-provider { display: none; }
+      .ptb-source { width: 84px; padding: 0 8px; font-size: 11px; }
       body.player-mode .ctrl-bar {
         padding: 12px 16px 16px;
         border-top: 1px solid var(--border);
@@ -1229,7 +1245,11 @@
 <div class="player-section">
   <div class="player-title-bar" id="playerTitleBar">
     <span class="ptb-title" id="ptbTitle">Now Playing</span>
-    <button class="ptb-close" onclick="goHome()" title="Close player">&#10005;</button>
+    <div class="ptb-actions">
+      <span class="ptb-provider" id="ptbProvider">Best Player</span>
+      <button class="ptb-source" onclick="tryNextSource()" title="Try another player">Try next</button>
+      <button class="ptb-close" onclick="goHome()" title="Close player">&#10005;</button>
+    </div>
   </div>
   <div class="player-wrap" id="playerWrap">
     <div class="player-inner" id="playerInner"></div>
@@ -1258,8 +1278,9 @@
         <div class="pref-group">
           <span class="pref-label">Source</span>
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value)">
-            <option value="vidsrc" selected>Farsi Subs</option>
-            <option value="vidking">VidKing Backup</option>
+            <option value="cinezo" selected>Best Player</option>
+            <option value="vidking">Backup</option>
+            <option value="vidsrc">Farsi Subs</option>
           </select>
         </div>
         <div class="pref-group">
@@ -1561,9 +1582,11 @@
 </div>
 
 <script>
-var currentType = 'movie', currentColor = '0dcaf0', currentPlayerSource = 'vidsrc', currentSubtitleLang = 'fa', searchTimeout = null;
+var currentType = 'movie', currentColor = '0dcaf0', currentPlayerSource = 'cinezo', currentSubtitleLang = 'fa', searchTimeout = null;
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
+var PLAYER_SOURCES = ['cinezo', 'vidking', 'vidsrc'];
+var lastPlayerRequest = null;
 
 var GRAD = [
   ['#1a1a2e','#16213e'],['#0f3460','#533483'],['#2d1b33','#1a0a0a'],['#0a2744','#1a4a7a'],
@@ -1747,6 +1770,13 @@ document.addEventListener('click', function(e) {
 });
 
 /* Player */
+function getPlayerSourceLabel(source) {
+  if (source === 'cinezo') return 'Best Player';
+  if (source === 'vidking') return 'Backup';
+  if (source === 'vidsrc') return 'Farsi Subs';
+  return 'Player';
+}
+
 function buildUrl(id, type, s, e, progress) {
   var sourceEl = document.getElementById('playerSource');
   var langEl = document.getElementById('subtitleLang');
@@ -1754,6 +1784,25 @@ function buildUrl(id, type, s, e, progress) {
   var subLang = langEl ? langEl.value : currentSubtitleLang;
   currentPlayerSource = source;
   currentSubtitleLang = subLang;
+
+  if (source === 'cinezo') {
+    var czBase = type === 'movie' ? 'https://player.cinezo.live/embed/movie/' + id : 'https://player.cinezo.live/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
+    var cz = new URLSearchParams();
+    cz.set('autoplay', document.getElementById('autoPlay').checked ? 'true' : 'false');
+    cz.set('poster', 'true');
+    cz.set('chromecast', 'true');
+    cz.set('servericon', 'true');
+    cz.set('setting', 'true');
+    cz.set('pip', 'true');
+    cz.set('font', 'Noto Sans Arabic');
+    cz.set('fontcolor', 'ffffff');
+    cz.set('fontsize', '22');
+    cz.set('opacity', '0.72');
+    cz.set('primarycolor', currentColor);
+    cz.set('secondarycolor', '111827');
+    cz.set('iconcolor', 'ffffff');
+    return czBase + '?' + cz.toString();
+  }
 
   if (source === 'vidsrc') {
     var vsBase = type === 'movie' ? 'https://vidsrc.sbs/embed/movie/' + id : 'https://vidsrc.sbs/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
@@ -1779,6 +1828,21 @@ function buildUrl(id, type, s, e, progress) {
 
 function setPlayerSource(source) {
   currentPlayerSource = source;
+  var sourceEl = document.getElementById('playerSource');
+  if (sourceEl && sourceEl.value !== source) sourceEl.value = source;
+  var provider = document.getElementById('ptbProvider');
+  if (provider) provider.textContent = getPlayerSourceLabel(source);
+  if (document.body.classList.contains('player-mode') && lastPlayerRequest) {
+    loadPlayer(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e, lastPlayerRequest.progress, lastPlayerRequest.title);
+  }
+}
+
+function tryNextSource() {
+  var current = currentPlayerSource || 'cinezo';
+  var idx = PLAYER_SOURCES.indexOf(current);
+  var next = PLAYER_SOURCES[(idx + 1) % PLAYER_SOURCES.length] || 'cinezo';
+  setPlayerSource(next);
+  showToast('Trying ' + getPlayerSourceLabel(next));
 }
 
 function setSubtitleLang(lang) {
@@ -1822,6 +1886,7 @@ function loadPlayer(id, type, s, e, progress, title) {
   s    = s    || document.getElementById('season').value  || 1;
   e    = e    || document.getElementById('episode').value || 1;
   if (!id) return;
+  lastPlayerRequest = { id: id, type: type, s: s, e: e, progress: progress || 0, title: title || '' };
 
   var url = buildUrl(id, type, s, e, progress);
   var inner = document.getElementById('playerInner');
@@ -1847,6 +1912,7 @@ function loadPlayer(id, type, s, e, progress, title) {
   document.getElementById('heroSection').style.display = 'none';
   document.getElementById('playerTitleBar').classList.add('on');
   document.getElementById('ptbTitle').textContent = title || (type + ' #' + id);
+  document.getElementById('ptbProvider').textContent = getPlayerSourceLabel(currentPlayerSource);
 
   document.getElementById('tmdbId').value = id;
   setType(type);
@@ -1862,6 +1928,7 @@ function loadPlayer(id, type, s, e, progress, title) {
 
 function goHome() {
   document.getElementById('playerInner').innerHTML = '';
+  lastPlayerRequest = null;
   externalSubtitles = [];
   externalSubtitleLast = '';
   if (externalSubtitleTimer) { clearTimeout(externalSubtitleTimer); externalSubtitleTimer = null; }
