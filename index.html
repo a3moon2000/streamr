@@ -1084,7 +1084,7 @@
       .subtitle-tools {
         padding: 10px 16px;
         display: none;
-        grid-template-columns: 1fr 1fr 42px 42px;
+        grid-template-columns: 1fr 1fr;
         gap: 8px;
       }
       .subtitle-tools.on { display: grid; }
@@ -1309,8 +1309,9 @@
     <span id="progPct"></span>
   </div>
   <div class="subtitle-tools" id="subtitleTools">
+    <button class="sub-tool-btn primary" onclick="openFarsiSubtitleSearch()">Find Farsi</button>
     <button class="sub-tool-btn" onclick="document.getElementById('subtitleFile').click()">Upload .srt</button>
-    <button class="sub-tool-btn primary" id="subClockBtn" onclick="toggleSubtitleClock()" disabled>Start subs</button>
+    <button class="sub-tool-btn" id="subClockBtn" onclick="toggleSubtitleClock()" disabled>Start subs</button>
     <button class="sub-tool-btn" id="subBackBtn" onclick="syncSubtitle(-2)" disabled>-2s</button>
     <button class="sub-tool-btn" id="subForwardBtn" onclick="syncSubtitle(2)" disabled>+2s</button>
     <span class="sub-tool-status" id="subtitleStatus">Upload Farsi .srt or add SubDL key</span>
@@ -2098,6 +2099,23 @@ function syncSubtitle(delta) {
   subtitleSyncOffset += delta;
   setSubtitleStatus('Subtitle sync ' + (subtitleSyncOffset >= 0 ? '+' : '') + subtitleSyncOffset.toFixed(0) + 's');
   tickSubtitleClock();
+}
+
+function cleanSubtitleTitle(title) {
+  return String(title || '')
+    .replace(/\s*#\d+$/, '')
+    .replace(/[^\w\s:.'-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function openFarsiSubtitleSearch() {
+  var title = cleanSubtitleTitle((lastPlayerRequest && lastPlayerRequest.title) || document.getElementById('ptbTitle').textContent || document.getElementById('tmdbId').value);
+  if (!title || title === 'Now Playing') title = document.getElementById('tmdbId').value || 'movie';
+  var query = title + ' farsi persian';
+  var url = 'https://subdl.com/search/' + encodeURIComponent(query);
+  window.open(url, '_blank', 'noopener,noreferrer');
+  setSubtitleStatus('Download a Persian .srt from SubDL, then tap Upload .srt here.');
 }
 
 function loadSubtitleText(text, label) {

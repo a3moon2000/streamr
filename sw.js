@@ -1,5 +1,5 @@
 /* Streamr service worker - app shell cache for installability + offline shell */
-var CACHE = 'streamr-v15';
+var CACHE = 'streamr-v16';
 var SHELL = ['./', './index.html', './icon.svg', './manifest.json'];
 
 self.addEventListener('install', function(e) {
