@@ -335,14 +335,14 @@
     .type-toggle button.active { background: var(--accent); color: oklch(10% 0 0); }
     .field { display: flex; align-items: center; gap: 6px; }
     .field label { font-size: 11px; color: var(--muted); white-space: nowrap; }
-    input[type="text"], input[type="number"] {
+    input[type="text"], input[type="number"], select {
       background: var(--surface2); border: 1px solid var(--border);
       border-radius: var(--r); color: var(--text);
       font-family: var(--mono); font-size: 13px;
       padding: 6px 10px; outline: none;
       transition: border-color 150ms;
     }
-    input[type="text"]:focus, input[type="number"]:focus { border-color: var(--accent); }
+    input[type="text"]:focus, input[type="number"]:focus, select:focus { border-color: var(--accent); }
     #tmdbId { width: 110px; }
     input[type="number"] { width: 54px; }
     .tv-fields { display: none; align-items: center; gap: 8px; }
@@ -358,6 +358,8 @@
     .settings { display: flex; align-items: center; gap: 12px; margin-left: auto; }
     .pref-group { display: flex; align-items: center; gap: 8px; }
     .pref-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); }
+    .pref-select { height: 34px; min-width: 120px; cursor: pointer; }
+    .pref-select:disabled { opacity: 0.48; cursor: not-allowed; }
     .chips { display: flex; gap: 4px; }
     .chip {
       width: 16px; height: 16px; border-radius: 50%;
@@ -1068,6 +1070,11 @@
         justify-content: space-between;
         min-height: 40px;
       }
+      body.player-mode .pref-select {
+        width: 150px;
+        height: 40px;
+        font-size: 13px;
+      }
       body.player-mode .chips {
         gap: 8px;
       }
@@ -1214,6 +1221,27 @@
         <div class="field"><label>E</label><input type="number" id="episode" value="1" min="1"></div>
       </div>
       <div class="settings">
+        <div class="pref-group">
+          <span class="pref-label">Source</span>
+          <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value)">
+            <option value="vidking" selected>VidKing</option>
+            <option value="vidsrc">Subs+</option>
+          </select>
+        </div>
+        <div class="pref-group">
+          <span class="pref-label">Subs</span>
+          <select class="pref-select" id="subtitleLang" onchange="setSubtitleLang(this.value)" disabled>
+            <option value="en" selected>English</option>
+            <option value="ar">Arabic</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="pt">Portuguese</option>
+            <option value="tr">Turkish</option>
+            <option value="fa">Persian</option>
+            <option value="ko">Korean</option>
+          </select>
+        </div>
         <div class="pref-group">
           <span class="pref-label">Accent</span>
           <div class="chips">
@@ -1494,7 +1522,7 @@
 </div>
 
 <script>
-var currentType = 'movie', currentColor = '0dcaf0', searchTimeout = null;
+var currentType = 'movie', currentColor = '0dcaf0', currentPlayerSource = 'vidking', currentSubtitleLang = 'en', searchTimeout = null;
 
 var GRAD = [
   ['#1a1a2e','#16213e'],['#0f3460','#533483'],['#2d1b33','#1a0a0a'],['#0a2744','#1a4a7a'],
@@ -1679,6 +1707,27 @@ document.addEventListener('click', function(e) {
 
 /* Player */
 function buildUrl(id, type, s, e, progress) {
+  var sourceEl = document.getElementById('playerSource');
+  var langEl = document.getElementById('subtitleLang');
+  var source = sourceEl ? sourceEl.value : currentPlayerSource;
+  var subLang = langEl ? langEl.value : currentSubtitleLang;
+  currentPlayerSource = source;
+  currentSubtitleLang = subLang;
+
+  if (source === 'vidsrc') {
+    var vsBase = type === 'movie' ? 'https://vidsrc.xyz/embed/movie' : 'https://vidsrc.xyz/embed/tv';
+    var vs = new URLSearchParams();
+    vs.set('tmdb', id);
+    if (type === 'tv') {
+      vs.set('season', s || 1);
+      vs.set('episode', e || 1);
+    }
+    vs.set('ds_lang', subLang || 'en');
+    vs.set('autoplay', document.getElementById('autoPlay').checked ? '1' : '0');
+    if (progress && progress > 10) vs.set('startAt', Math.floor(progress));
+    return vsBase + '?' + vs.toString();
+  }
+
   var base = type === 'movie' ? 'https://www.vidking.net/embed/movie/' + id : 'https://www.vidking.net/embed/tv/' + id + '/' + s + '/' + e;
   var p = new URLSearchParams();
   p.set('color', currentColor);
@@ -1689,6 +1738,16 @@ function buildUrl(id, type, s, e, progress) {
   }
   if (progress && progress > 10) p.set('progress', Math.floor(progress));
   return base + '?' + p.toString();
+}
+
+function setPlayerSource(source) {
+  currentPlayerSource = source;
+  var lang = document.getElementById('subtitleLang');
+  if (lang) lang.disabled = source !== 'vidsrc';
+}
+
+function setSubtitleLang(lang) {
+  currentSubtitleLang = lang || 'en';
 }
 
 function setType(t) {
@@ -1778,7 +1837,7 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', size
 /* Progress tracking */
 window.addEventListener('message', function(ev) {
   try {
-    var data = JSON.parse(ev.data);
+    var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
     if (data.type !== 'PLAYER_EVENT') return;
     var d = data.data;
     var strip = document.getElementById('progStrip');
@@ -1786,20 +1845,23 @@ window.addEventListener('message', function(ev) {
     var evt = document.getElementById('progEvt');
     var time = document.getElementById('progTime');
     var pct = document.getElementById('progPct');
-    if (d.event === 'timeupdate') {
+    var status = d.event || d.player_status;
+    var current = d.currentTime || d.player_progress || 0;
+    var duration = d.duration || d.player_duration || 0;
+    if (status === 'timeupdate' || status === 'playing') {
       strip.classList.add('on');
       evt.textContent = '▶';
-      time.textContent = fmt(d.currentTime) + ' / ' + fmt(d.duration);
-      var p = d.progress || 0;
+      time.textContent = fmt(current) + ' / ' + fmt(duration);
+      var p = d.progress || (duration ? (current / duration) * 100 : 0);
       pct.textContent = p.toFixed(1) + '%';
       fill.style.width = Math.min(100, p) + '%';
       var id = document.getElementById('tmdbId').value;
-      if (id && d.currentTime > 5) {
-        saveHistory(id, currentType, document.getElementById('season').value, document.getElementById('episode').value, null, d.currentTime, d.duration, p);
+      if (id && current > 5) {
+        saveHistory(id, currentType, document.getElementById('season').value, document.getElementById('episode').value, null, current, duration, p);
       }
-    } else if (d.event === 'pause') { evt.textContent = '⏸'; }
-    else if (d.event === 'play') { evt.textContent = '▶'; }
-    else if (d.event === 'ended') { evt.textContent = '✓'; time.textContent = 'Finished'; }
+    } else if (status === 'pause' || status === 'paused') { evt.textContent = '⏸'; }
+    else if (status === 'play') { evt.textContent = '▶'; }
+    else if (status === 'ended' || status === 'completed') { evt.textContent = '✓'; time.textContent = 'Finished'; }
   } catch(err) {}
 });
 
