@@ -1258,8 +1258,8 @@
         <div class="pref-group">
           <span class="pref-label">Source</span>
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value)">
-            <option value="vidking" selected>VidKing</option>
-            <option value="vidsrc">Subs+ Farsi</option>
+            <option value="vidsrc" selected>Farsi Subs</option>
+            <option value="vidking">VidKing Backup</option>
           </select>
         </div>
         <div class="pref-group">
@@ -1561,7 +1561,7 @@
 </div>
 
 <script>
-var currentType = 'movie', currentColor = '0dcaf0', currentPlayerSource = 'vidking', currentSubtitleLang = 'fa', searchTimeout = null;
+var currentType = 'movie', currentColor = '0dcaf0', currentPlayerSource = 'vidsrc', currentSubtitleLang = 'fa', searchTimeout = null;
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
 
@@ -1756,16 +1756,12 @@ function buildUrl(id, type, s, e, progress) {
   currentSubtitleLang = subLang;
 
   if (source === 'vidsrc') {
-    var vsBase = type === 'movie' ? 'https://vidsrc.xyz/embed/movie' : 'https://vidsrc.xyz/embed/tv';
+    var vsBase = type === 'movie' ? 'https://vidsrc.sbs/embed/movie/' + id : 'https://vidsrc.sbs/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
     var vs = new URLSearchParams();
-    vs.set('tmdb', id);
-    if (type === 'tv') {
-      vs.set('season', s || 1);
-      vs.set('episode', e || 1);
-    }
-    vs.set('ds_lang', subLang || 'en');
+    vs.set('sub', subLang || 'fa');
+    vs.set('color', currentColor);
     vs.set('autoplay', document.getElementById('autoPlay').checked ? '1' : '0');
-    if (progress && progress > 10) vs.set('startAt', Math.floor(progress));
+    if (progress && progress > 10) vs.set('t', Math.floor(progress));
     return vsBase + '?' + vs.toString();
   }
 
@@ -1995,6 +1991,7 @@ function updateExternalSubtitle(seconds) {
 }
 
 function loadExternalFarsiSubtitles(id, type, season, episode) {
+  if (currentPlayerSource !== 'vidking') return;
   if (currentSubtitleLang !== 'fa') return;
   if (!SUBDL_KEY) {
     showSubtitleHint('Add a SubDL key in Settings for Farsi overlay subtitles');
