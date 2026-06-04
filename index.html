@@ -998,24 +998,32 @@
       .hdr-btn { width: 38px; height: 38px; }
       .install-btn { width: 38px; height: 38px; padding: 0; justify-content: center; font-size: 0; }
       .install-btn svg { width: 17px; height: 17px; }
-      .quicknav { top: 58px; padding: 8px 12px; gap: 6px; scroll-padding-inline: 12px; }
+      .quicknav {
+        top: 58px;
+        padding: 8px 12px;
+        gap: 6px;
+        scroll-padding-inline: 12px;
+        scroll-snap-type: x proximity;
+        box-shadow: inset -26px 0 20px -22px oklch(0% 0 0 / 0.82);
+      }
+      .qn-pill { scroll-snap-align: start; }
       .qn-pill { padding: 7px 12px; font-size: 12px; }
       .scroll-anchor { scroll-margin-top: 116px; }
-      .spotlight { height: 390px; }
+      .spotlight { height: 340px; }
       .spotlight-bg { background-position: center top; }
       .spotlight-grad {
         background:
           linear-gradient(to top, var(--bg) 4%, oklch(22% 0.016 255 / 0.28) 45%, transparent 78%),
           linear-gradient(to right, oklch(22% 0.016 255 / 0.65), transparent 72%);
       }
-      .spotlight-content { left: 0; right: 0; width: 100%; padding: 0 16px; bottom: 24px; max-width: 100%; }
-      .spotlight-badges { gap: 7px; margin-bottom: 10px; }
-      .spotlight-title { font-size: 38px; line-height: 0.98; margin-bottom: 10px; }
-      .spotlight-overview { font-size: 13px; -webkit-line-clamp: 2; margin-bottom: 16px; }
+      .spotlight-content { left: 0; right: 0; width: 100%; padding: 0 16px; bottom: 18px; max-width: 100%; }
+      .spotlight-badges { gap: 6px; margin-bottom: 8px; }
+      .spotlight-title { font-size: 31px; line-height: 1.03; margin-bottom: 8px; }
+      .spotlight-overview { font-size: 12.5px; -webkit-line-clamp: 2; margin-bottom: 12px; }
       .spotlight-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; width: 100%; }
       .spotlight-actions .sp-btn { justify-content: center; }
       .spotlight-dots { right: 16px; bottom: 12px; }
-      .sp-btn { min-height: 42px; padding: 10px 14px; font-size: 14px; border-radius: 9px; }
+      .sp-btn { min-height: 40px; padding: 9px 13px; font-size: 13px; border-radius: 9px; }
       .content { padding: 0 16px 48px; }
       .sec-header { margin-top: 28px; margin-bottom: 12px; }
       .sec-title { font-size: 17px; }
@@ -1036,7 +1044,8 @@
       .pick-overlay, .pick-overview { display: none; }
       .pick:hover, .trending-card:hover, .feat-card:hover { transform: none; }
       .pick:hover .pick-poster img, .trending-card:hover .pick-poster img { transform: none; }
-      .feat-card { flex: 0 0 258px; }
+      .feat-card { flex: 0 0 228px; }
+      .cw-card { flex-basis: 200px; }
       .trending-card { flex-basis: 132px; }
       .trending-info { padding: 8px 9px 10px; }
       .trending-title { font-size: 11.5px; }
@@ -1049,10 +1058,8 @@
       .ptb-actions { gap: 6px; }
       .ptb-provider { display: none; }
       .ptb-source { width: 84px; padding: 0 8px; font-size: 11px; }
-      body.player-mode .ctrl-bar {
-        padding: 12px 16px 16px;
-        border-top: 1px solid var(--border);
-      }
+      body.player-mode .ctrl-bar { display: none !important; }
+      body.player-mode .player-inner { min-height: 320px; }
       body.player-mode .ctrl-inner {
         display: grid;
         grid-template-columns: 1fr;
@@ -1280,21 +1287,7 @@
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value)">
             <option value="cinezo" selected>Best Player</option>
             <option value="vidking">Backup</option>
-            <option value="vidsrc">Farsi Subs</option>
-          </select>
-        </div>
-        <div class="pref-group">
-          <span class="pref-label">Subs</span>
-          <select class="pref-select" id="subtitleLang" onchange="setSubtitleLang(this.value)">
-            <option value="fa" selected>Persian / Farsi</option>
-            <option value="en">English</option>
-            <option value="ar">Arabic</option>
-            <option value="es">Spanish</option>
-            <option value="fr">French</option>
-            <option value="de">German</option>
-            <option value="pt">Portuguese</option>
-            <option value="tr">Turkish</option>
-            <option value="ko">Korean</option>
+            <option value="vidsrc">Backup 2</option>
           </select>
         </div>
         <div class="pref-group">
@@ -1564,11 +1557,6 @@
       <div class="modal-hint">Free key from <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--accent)">themoviedb.org/settings/api</a>. Enables poster images and search.</div>
     </div>
     <div class="modal-field">
-      <label>SubDL API Key</label>
-      <input type="text" id="subdlKeyInput" placeholder="Enter your SubDL API key">
-      <div class="modal-hint">Used only for external Persian / Farsi subtitle overlay when the embedded player has no Farsi track.</div>
-    </div>
-    <div class="modal-field">
       <label>Hide Genres</label>
       <div class="genre-hide-grid" id="genreHideGrid"></div>
       <div class="modal-hint">Tap a genre to hide it everywhere on the app.</div>
@@ -1774,17 +1762,14 @@ document.addEventListener('click', function(e) {
 function getPlayerSourceLabel(source) {
   if (source === 'cinezo') return 'Best Player';
   if (source === 'vidking') return 'Backup';
-  if (source === 'vidsrc') return 'Farsi Subs';
+  if (source === 'vidsrc') return 'Backup 2';
   return 'Player';
 }
 
 function buildUrl(id, type, s, e, progress) {
   var sourceEl = document.getElementById('playerSource');
-  var langEl = document.getElementById('subtitleLang');
   var source = sourceEl ? sourceEl.value : currentPlayerSource;
-  var subLang = langEl ? langEl.value : currentSubtitleLang;
   currentPlayerSource = source;
-  currentSubtitleLang = subLang;
 
   if (source === 'cinezo') {
     var czBase = type === 'movie' ? 'https://player.cinezo.live/embed/movie/' + id : 'https://player.cinezo.live/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
@@ -1808,7 +1793,7 @@ function buildUrl(id, type, s, e, progress) {
   if (source === 'vidsrc') {
     var vsBase = type === 'movie' ? 'https://vidsrc.sbs/embed/movie/' + id : 'https://vidsrc.sbs/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
     var vs = new URLSearchParams();
-    vs.set('sub', subLang || 'fa');
+    vs.set('sub', currentSubtitleLang || 'fa');
     vs.set('color', currentColor);
     vs.set('autoplay', document.getElementById('autoPlay').checked ? '1' : '0');
     if (progress && progress > 10) vs.set('t', Math.floor(progress));
@@ -1875,7 +1860,9 @@ function sizeMobilePlayer() {
     document.documentElement.style.removeProperty('--player-mobile-height');
     return;
   }
-  var target = Math.round(Math.max(360, Math.min(vh * 0.58, vh - 350, 560)));
+  var reserve = vw <= 720 ? 88 : 350;
+  var minH = vw <= 720 ? 320 : 360;
+  var target = Math.round(Math.max(minH, Math.min(vh * 0.68, vh - reserve, 620)));
   inner.style.height = target + 'px';
   inner.style.paddingTop = '0';
   document.documentElement.style.setProperty('--player-mobile-height', target + 'px');
@@ -1927,7 +1914,6 @@ function loadPlayer(id, type, s, e, progress, title) {
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
   saveHistory(id, type, s, e, title || (type + ' #' + id), progress || 0, 0, 0);
-  loadExternalFarsiSubtitles(id, type, s, e);
 }
 
 function goHome() {
@@ -2439,9 +2425,7 @@ function toggleGenreHide(gid, el) {
   else { HIDDEN_GENRES.push(gid); el.classList.add('hidden-on'); }
 }
 function openSettings() {
-  SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || SUBDL_KEY || '';
   document.getElementById('tmdbKeyInput').value = TMDB_KEY;
-  document.getElementById('subdlKeyInput').value = SUBDL_KEY;
   renderGenreHideChips();
   document.getElementById('settingsModal').classList.add('on');
 }
@@ -2456,13 +2440,9 @@ function refreshAllRows() {
 }
 function saveSettings() {
   var key = document.getElementById('tmdbKeyInput').value.trim();
-  var subdlKey = document.getElementById('subdlKeyInput').value.trim();
   TMDB_KEY = key;
-  SUBDL_KEY = subdlKey;
   if (key) localStorage.setItem('streamr_tmdb_key', key);
   else localStorage.removeItem('streamr_tmdb_key');
-  if (subdlKey) localStorage.setItem('streamr_subdl_key', subdlKey);
-  else localStorage.removeItem('streamr_subdl_key');
   localStorage.setItem('streamr_hidden_genres', JSON.stringify(HIDDEN_GENRES));
   closeSettings();
   refreshAllRows();
