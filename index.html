@@ -1808,7 +1808,7 @@
     <span class="ptb-ep" id="ptbEp"></span>
     <span class="ptb-title" id="ptbTitle">Now Playing</span>
     <div class="ptb-actions">
-      <span class="ptb-provider" id="ptbProvider">Best Player</span>
+      <span class="ptb-provider" id="ptbProvider">Cinezo</span>
       <button class="ptb-close" onclick="goHome()" title="Close player (Esc)">&#10005;</button>
     </div>
   </div>
@@ -1873,9 +1873,8 @@
         <div class="pref-group">
           <span class="pref-label">Source</span>
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value)">
-            <option value="cinezo" selected>Best Player</option>
-            <option value="vidking">Backup</option>
-            <option value="vidsrc">Backup 2</option>
+            <option value="cinezo" selected>Cinezo</option>
+            <option value="vidking">VidKing</option>
           </select>
         </div>
         <div class="pref-group">
@@ -2209,7 +2208,7 @@
 var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'cinezo', currentSubtitleLang = 'fa', searchTimeout = null;
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
-var PLAYER_SOURCES = ['cinezo', 'vidking', 'vidsrc'];
+var PLAYER_SOURCES = ['cinezo', 'vidking'];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
 var playerLoadTimer = null, playerGotProgress = false, playerSourceFailCount = 0, playerAutoFallback = true;
@@ -2664,17 +2663,21 @@ document.addEventListener('click', function(e) {
 });
 
 /* Player */
+function normalizePlayerSource(source) {
+  return PLAYER_SOURCES.indexOf(source) >= 0 ? source : 'cinezo';
+}
+
 function getPlayerSourceLabel(source) {
-  if (source === 'cinezo') return 'Best Player';
-  if (source === 'vidking') return 'Backup';
-  if (source === 'vidsrc') return 'Backup 2';
-  return 'Player';
+  if (source === 'cinezo') return 'Cinezo';
+  if (source === 'vidking') return 'VidKing';
+  return 'Cinezo';
 }
 
 function buildUrl(id, type, s, e, progress) {
   var sourceEl = document.getElementById('playerSource');
-  var source = sourceEl ? sourceEl.value : currentPlayerSource;
+  var source = normalizePlayerSource(sourceEl ? sourceEl.value : currentPlayerSource);
   currentPlayerSource = source;
+  if (sourceEl && sourceEl.value !== source) sourceEl.value = source;
 
   if (source === 'cinezo') {
     var czBase = type === 'movie' ? 'https://player.cinezo.live/embed/movie/' + id : 'https://player.cinezo.live/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
@@ -2696,16 +2699,6 @@ function buildUrl(id, type, s, e, progress) {
     return czBase + '?' + cz.toString();
   }
 
-  if (source === 'vidsrc') {
-    var vsBase = type === 'movie' ? 'https://vidsrc.sbs/embed/movie/' + id : 'https://vidsrc.sbs/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
-    var vs = new URLSearchParams();
-    vs.set('sub', currentSubtitleLang || 'fa');
-    vs.set('color', currentColor);
-    vs.set('autoplay', document.getElementById('autoPlay').checked ? '1' : '0');
-    if (progress && progress > 10) vs.set('t', Math.floor(progress));
-    return vsBase + '?' + vs.toString();
-  }
-
   var base = type === 'movie' ? 'https://www.vidking.net/embed/movie/' + id : 'https://www.vidking.net/embed/tv/' + id + '/' + s + '/' + e;
   var p = new URLSearchParams();
   p.set('color', currentColor);
@@ -2719,9 +2712,9 @@ function buildUrl(id, type, s, e, progress) {
 }
 
 function setPlayerSource(source) {
-  currentPlayerSource = source;
+  currentPlayerSource = normalizePlayerSource(source);
   var sourceEl = document.getElementById('playerSource');
-  if (sourceEl && sourceEl.value !== source) sourceEl.value = source;
+  if (sourceEl && sourceEl.value !== currentPlayerSource) sourceEl.value = currentPlayerSource;
   var provider = document.getElementById('ptbProvider');
   if (provider) provider.textContent = getPlayerSourceLabel(source);
   if (document.body.classList.contains('player-mode') && lastPlayerRequest) {
