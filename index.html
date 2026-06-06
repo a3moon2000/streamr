@@ -724,6 +724,39 @@
       padding: 10px 14px 6px; font-size: 10px; font-weight: 700;
       text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
     }
+    .sr-loading { display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .sr-loading::before {
+      content: ''; width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .top10-label {
+      display: inline-flex; flex-direction: column; justify-content: center;
+      line-height: 0.88; font-family: var(--display); font-size: 11px;
+      letter-spacing: 0.14em; color: #fff; margin-right: 10px; flex-shrink: 0;
+      border-left: 3px solid var(--accent); padding-left: 10px;
+    }
+    .top10-label-n { font-size: 2.1em; color: var(--accent); letter-spacing: 0.06em; }
+    .back-top {
+      position: fixed; right: clamp(16px, 3vw, 28px);
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+      z-index: 180; width: 44px; height: 44px; border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.14); background: rgba(30,30,30,0.94);
+      color: #fff; font-size: 20px; line-height: 1; cursor: pointer;
+      opacity: 0; pointer-events: none; transform: translateY(8px);
+      transition: opacity 0.25s, transform 0.25s, background 0.15s;
+      backdrop-filter: blur(10px);
+    }
+    .back-top.on { opacity: 1; pointer-events: auto; transform: none; }
+    .back-top:hover { background: rgba(50,50,50,0.96); }
+    body.player-mode .back-top,
+    body:has(.browse-overlay.on) .back-top,
+    body:has(.detail-backdrop.on) .back-top,
+    body:has(.modal-backdrop.on) .back-top { display: none; }
+    @media (min-width: 641px) {
+      .back-top { bottom: 28px; }
+    }
     .feat-card {
       flex: 0 0 clamp(280px, 32vw, 420px); scroll-snap-align: start;
       position: relative; border-radius: var(--rl); overflow: hidden;
@@ -919,18 +952,25 @@
 
     /* Genre tabs */
     .genre-tabs {
-      display: flex; gap: 6px; flex-wrap: wrap;
-      margin-bottom: 20px; margin-top: -4px;
+      display: flex; gap: 0; flex-wrap: nowrap;
+      margin-bottom: 16px; margin-top: -4px;
+      overflow-x: auto; scrollbar-width: none;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding-bottom: 0;
     }
+    .genre-tabs::-webkit-scrollbar { display: none; }
     .genre-tab {
-      padding: 5px 14px; border-radius: 20px;
-      border: 1px solid var(--border);
-      background: transparent; color: var(--muted);
-      font-family: var(--sans); font-size: 12px; font-weight: 500;
-      cursor: pointer; transition: all 150ms;
+      flex-shrink: 0; padding: 10px 16px; border-radius: 0;
+      border: none; border-bottom: 3px solid transparent;
+      background: transparent; color: var(--text2);
+      font-family: var(--sans); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: color 150ms, border-color 150ms;
     }
-    .genre-tab:hover { border-color: var(--text2); color: var(--text2); }
-    .genre-tab.active { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+    .genre-tab:hover { color: var(--text); }
+    .genre-tab.active {
+      background: transparent; color: #ffffff; font-weight: 700;
+      border-bottom-color: var(--accent);
+    }
 
     /* Card overview tooltip */
     .pick-overview {
@@ -1263,10 +1303,17 @@
 
     /* Footer */
     footer {
-      text-align: center; padding: 48px var(--row-pad);
-      border-top: none;
-      color: #555; font-size: 11px;
+      text-align: center; padding: 56px var(--row-pad) 40px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      color: #666; font-size: 11px; line-height: 1.8;
     }
+    .footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-bottom: 12px; }
+    .footer-links button {
+      border: none; background: none; color: #888; font-size: 11px;
+      cursor: pointer; font-family: var(--sans); padding: 0;
+      transition: color 150ms;
+    }
+    .footer-links button:hover { color: var(--text2); text-decoration: underline; }
     .genre-tabs { padding: 0 var(--row-pad); }
     #continueSection .sec-header { margin-top: 20px; }
 
@@ -1574,6 +1621,7 @@
       body:has(.modal-backdrop.on) .toast { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
       footer { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
       .genre-tab { min-height: 40px; padding: 8px 14px; }
+      .back-top { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
       .ghide-chip { min-height: 40px; padding: 8px 14px; font-size: 13px; }
       .ep-btn { min-height: 44px; }
     }
@@ -1767,7 +1815,8 @@
 
   <!-- Trending -->
   <div class="sec-header scroll-anchor" id="navTrending">
-    <div class="sec-title">Top 10 This Week</div>
+    <span class="top10-label"><span>TOP</span><span class="top10-label-n">10</span></span>
+    <div class="sec-title">This Week</div>
     <div class="sec-count" id="trendCount"></div>
     <div class="sec-line"></div>
     <div class="sec-seeall" onclick="openBrowse('trending')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -1924,7 +1973,17 @@
   </button>
 </nav>
 
-<footer>&copy; 2025 Streamr. Powered by VidKing Player and TMDB.</footer>
+<button class="back-top" id="backTop" type="button" aria-label="Back to top" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8593;</button>
+
+<footer>
+  <div class="footer-links">
+    <button type="button" onclick="openSettings()">Settings</button>
+    <button type="button" onclick="navTo('navMovies',null)">Movies</button>
+    <button type="button" onclick="navTo('navTV',null)">TV Shows</button>
+    <button type="button" onclick="navTo('navMyList',null)">My List</button>
+  </div>
+  &copy; 2026 Streamr · TMDB
+</footer>
 
 <!-- Browse overlay -->
 <div class="browse-overlay" id="browseOverlay">
@@ -2173,6 +2232,8 @@ function runRecentSearch(q) {
   doSearch(q, document.getElementById('headerSearchResults'));
 }
 
+function posterImgSize() { return window.innerWidth > 960 ? 'w342' : 'w185'; }
+
 function cardHoverBarHTML(id, type, title) {
   var faved = isFaved(id, type);
   return '<div class="card-hover-bar" onclick="event.stopPropagation()">'
@@ -2360,6 +2421,8 @@ function doSearch(query, resultsEl) {
     return;
   }
   if (query.length < 2) { showRecentSearches(resultsEl); return; }
+  resultsEl.innerHTML = '<div class="sr-empty sr-loading">Searching</div>';
+  resultsEl.classList.add('on');
   pushRecentSearch(query);
   tmdbFetch('/search/multi?query=' + encodeURIComponent(query) + '&include_adult=false').then(function(data) {
     if (!data || !data.results) return;
@@ -2526,6 +2589,7 @@ function loadPlayer(id, type, s, e, progress, title) {
   s    = s    || document.getElementById('season').value  || 1;
   e    = e    || document.getElementById('episode').value || 1;
   if (!id) return;
+  try { sessionStorage.setItem('streamr_scroll_y', String(window.scrollY)); } catch(e) {}
   lastPlayerRequest = { id: id, type: type, s: s, e: e, progress: progress || 0, title: title || '' };
 
   var url = buildUrl(id, type, s, e, progress);
@@ -2585,7 +2649,9 @@ function goHome() {
   document.getElementById('playerTitleBar').classList.remove('on');
   document.getElementById('progStrip').classList.remove('on');
   document.getElementById('tmdbId').value = '';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  var y = 0;
+  try { y = parseInt(sessionStorage.getItem('streamr_scroll_y') || '0', 10) || 0; } catch(e) {}
+  window.scrollTo({ top: y, behavior: y > 0 ? 'smooth' : 'auto' });
 }
 window.addEventListener('resize', sizeMobilePlayer);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', sizeMobilePlayer);
@@ -3084,7 +3150,8 @@ function filterGenre(type, genreId, btn) {
     return;
   }
   var grid = document.getElementById(gridId);
-  grid.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px 0">Loading...</div>';
+  grid.innerHTML = '';
+  for (var i = 0; i < 8; i++) grid.insertAdjacentHTML('beforeend', '<div class="skel skel-card"></div>');
   tmdbFetch('/discover/'+type+'?with_genres='+genreId+'&without_genres=27&sort_by=popularity.desc&vote_count.gte=100').then(function(data) {
     if (!data || !data.results) return;
     var items = data.results.slice(0, 12).map(function(r) {
@@ -3324,8 +3391,9 @@ function posterCardHTML(item, i, opts) {
   var year = (item.release_date || item.first_air_date || '').substring(0, 4);
   var type = item.media_type || item.type || 'movie';
   var posterPath = item.poster_path || item.poster;
+  var pSize = posterImgSize();
   var poster = posterPath
-    ? '<img src="'+TMDB_IMG+'w185'+posterPath+'" alt="" loading="lazy" decoding="async" onload="this.closest(\'.pick-poster\').classList.add(\'has-img\')">'
+    ? '<img src="'+TMDB_IMG+pSize+posterPath+'" alt="" loading="lazy" decoding="async" onload="this.closest(\'.pick-poster\').classList.add(\'has-img\')">'
     : '';
   var rating = item.vote_average ? '★ ' + item.vote_average.toFixed(1) : (item.rating ? '★ '+item.rating : '');
   var posterBlock = '<div class="pick-poster" style="background:var(--surface2)">'
@@ -3680,8 +3748,14 @@ function renderMyList() {
   var list = getList().filter(function(x){ return !isTitleHidden(x.id, x.type); });
   var sec = document.getElementById('myListSection');
   var pill = document.getElementById('qnMyList');
-  if (list.length === 0) { sec.style.display = 'none'; if (pill) pill.style.display = 'none'; return; }
+  var row = document.getElementById('myListRow');
   sec.style.display = 'block';
+  if (list.length === 0) {
+    if (pill) pill.style.display = 'none';
+    document.getElementById('myListCount').textContent = '';
+    if (row) row.innerHTML = '<div class="row-notice"><div><strong>Your list is empty</strong><span>Tap the heart on any title to save it here.</span></div></div>';
+    return;
+  }
   if (pill) pill.style.display = '';
   document.getElementById('myListCount').textContent = list.length + ' saved';
   renderPosterRow(list, 'myListRow', {});
@@ -3955,6 +4029,8 @@ function lazyLoad(anchorId, fn) {
   function onHdrScroll() {
     hdr.classList.toggle('hdr-solid', window.scrollY > 28);
     updateScrollSpy();
+    var bt = document.getElementById('backTop');
+    if (bt) bt.classList.toggle('on', window.scrollY > 520);
   }
   onHdrScroll();
   window.addEventListener('scroll', onHdrScroll, { passive: true });
