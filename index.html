@@ -1880,7 +1880,7 @@
           <span class="pref-label">Source</span>
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value)">
             <option value="cinezo" selected>Cinezo</option>
-            <option value="vidking">VidKing</option>
+            <option value="2embed">2Embed</option>
           </select>
         </div>
         <div class="pref-group">
@@ -1893,7 +1893,7 @@
             <div class="chip" data-color="1db954" style="background:#1db954" onclick="setColor(this)"></div>
           </div>
         </div>
-        <label class="tog-label">Auto <span class="sw"><input type="checkbox" id="autoPlay"><span class="sw-track"></span></span></label>
+        <label class="tog-label">Auto <span class="sw"><input type="checkbox" id="autoPlay" checked><span class="sw-track"></span></span></label>
         <label class="tog-label" id="epSelLabel" style="display:none">Episodes <span class="sw"><input type="checkbox" id="epSel" checked><span class="sw-track"></span></span></label>
       </div>
     </div>
@@ -2201,7 +2201,7 @@
       <label>Default Player</label>
       <select class="pref-select" id="settingsPlayerSource" style="width:100%;max-width:none">
         <option value="cinezo">Cinezo</option>
-        <option value="vidking">VidKing</option>
+        <option value="2embed">2Embed</option>
       </select>
     </div>
     <div class="modal-field">
@@ -2226,10 +2226,10 @@
 var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'cinezo', currentSubtitleLang = 'fa', searchTimeout = null;
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
-var PLAYER_SOURCES = ['cinezo', 'vidking'];
+var PLAYER_SOURCES = ['cinezo', '2embed'];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
-var playerLoadTimer = null, playerGotProgress = false, playerSourceFailCount = 0, playerAutoFallback = true;
+var playerLoadTimer = null, playerGotProgress = false, playerReadyMarked = false, playerSourceFailCount = 0, playerAutoFallback = true;
 var prefetchDetailCache = {};
 
 var GRAD = [
@@ -2683,25 +2683,27 @@ document.addEventListener('click', function(e) {
 
 /* Player */
 function normalizePlayerSource(source) {
+  if (source === 'vidking') source = '2embed';
   return PLAYER_SOURCES.indexOf(source) >= 0 ? source : 'cinezo';
 }
 
 function getPlayerSourceLabel(source) {
   if (source === 'cinezo') return 'Cinezo';
-  if (source === 'vidking') return 'VidKing';
+  if (source === '2embed') return '2Embed';
   return 'Cinezo';
 }
 
-function buildUrl(id, type, s, e, progress) {
+function buildUrl(id, type, s, e, progress, forceAutoplay) {
   var sourceEl = document.getElementById('playerSource');
   var source = normalizePlayerSource(sourceEl ? sourceEl.value : currentPlayerSource);
   currentPlayerSource = source;
   if (sourceEl && sourceEl.value !== source) sourceEl.value = source;
+  var autoOn = forceAutoplay || document.getElementById('autoPlay').checked;
 
   if (source === 'cinezo') {
     var czBase = type === 'movie' ? 'https://player.cinezo.live/embed/movie/' + id : 'https://player.cinezo.live/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
     var cz = new URLSearchParams();
-    cz.set('autoplay', document.getElementById('autoPlay').checked ? 'true' : 'false');
+    cz.set('autoplay', autoOn ? 'true' : 'false');
     cz.set('poster', 'true');
     cz.set('chromecast', 'true');
     cz.set('servericon', 'true');
@@ -2718,16 +2720,21 @@ function buildUrl(id, type, s, e, progress) {
     return czBase + '?' + cz.toString();
   }
 
-  var base = type === 'movie' ? 'https://www.vidking.net/embed/movie/' + id : 'https://www.vidking.net/embed/tv/' + id + '/' + s + '/' + e;
-  var p = new URLSearchParams();
-  p.set('color', currentColor);
-  if (document.getElementById('autoPlay').checked) p.set('autoPlay', 'true');
-  if (type === 'tv') {
-    if (document.getElementById('epSel').checked) p.set('episodeSelector', 'true');
-    p.set('nextEpisode', 'true');
+  if (source === '2embed') {
+    if (type === 'movie') return 'https://www.2embed.cc/embed/' + id;
+    return 'https://www.2embed.cc/embedtv/' + id + '&s=' + (s || 1) + '&e=' + (e || 1);
   }
-  if (progress && progress > 10) p.set('progress', Math.floor(progress));
-  return base + '?' + p.toString();
+
+  return 'https://www.2embed.cc/embed/' + id;
+}
+
+function markPlayerReady(statusText) {
+  if (playerReadyMarked) return;
+  playerReadyMarked = true;
+  playerGotProgress = true;
+  clearPlayerLoadWatch();
+  dismissPlayerLoading(true);
+  setDockStatus(statusText || 'Playing', false);
 }
 
 function setPlayerSource(source) {
@@ -2793,6 +2800,7 @@ function dismissPlayerLoading(ok) {
 
 function showPlayerLoading() {
   playerGotProgress = false;
+  playerReadyMarked = false;
   var inner = document.getElementById('playerInner');
   var existing = document.getElementById('playerLoading');
   if (existing) {
@@ -2972,7 +2980,7 @@ function loadPlayer(id, type, s, e, progress, title) {
   try { sessionStorage.setItem('streamr_scroll_y', String(window.scrollY)); } catch(e) {}
   lastPlayerRequest = { id: id, type: type, s: s, e: e, progress: progress || 0, title: title || '' };
 
-  var url = buildUrl(id, type, s, e, progress);
+  var url = buildUrl(id, type, s, e, progress, true);
   var inner = document.getElementById('playerInner');
   inner.innerHTML = '';
   showPlayerLoading();
@@ -2984,12 +2992,10 @@ function loadPlayer(id, type, s, e, progress, title) {
   iframe.src = url;
   iframe.setAttribute('frameborder', '0');
   iframe.setAttribute('allowfullscreen', 'true');
-  iframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *');
-  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
-  iframe.setAttribute('referrerpolicy', 'no-referrer');
+  iframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media');
   iframe.setAttribute('loading', 'eager');
   iframe.addEventListener('load', function() {
-    if (!playerGotProgress) setDockStatus('Buffering', true);
+    setTimeout(function() { markPlayerReady('Playing'); }, 900);
   });
   inner.appendChild(iframe);
   var sub = document.createElement('div');
@@ -3026,6 +3032,7 @@ function loadPlayer(id, type, s, e, progress, title) {
 function goHome() {
   clearPlayerLoadWatch();
   playerGotProgress = false;
+  playerReadyMarked = false;
   playerSourceFailCount = 0;
   playerAutoFallback = true;
   document.getElementById('playerInner').innerHTML = '';
@@ -3340,6 +3347,9 @@ var lastAutoAdvanceAt = 0;
 window.addEventListener('message', function(ev) {
   try {
     var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+    if (!data || typeof data !== 'object') return;
+    var msgType = data.type || data.event || '';
+    if (msgType === 'play' || msgType === 'ready' || msgType === 'playing') markPlayerReady('Playing');
     if (data.type !== 'PLAYER_EVENT') return;
     var d = data.data;
     var strip = document.getElementById('progStrip');
@@ -3352,10 +3362,8 @@ window.addEventListener('message', function(ev) {
     var duration = d.duration || d.player_duration || 0;
     if (status === 'timeupdate' || status === 'playing') {
       if (!playerGotProgress) {
-        playerGotProgress = true;
         playerSourceFailCount = 0;
-        clearPlayerLoadWatch();
-        dismissPlayerLoading(true);
+        markPlayerReady('Playing');
       }
       strip.classList.add('on');
       evt.textContent = '▶';
