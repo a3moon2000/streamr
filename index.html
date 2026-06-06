@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Streamr</title>
   <meta name="description" content="Stream movies and TV shows instantly.">
+  <meta property="og:title" content="Streamr">
+  <meta property="og:description" content="Stream movies and TV shows instantly.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#141414">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
@@ -16,6 +20,7 @@
   <meta name="apple-mobile-web-app-title" content="Streamr">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://image.tmdb.org" crossorigin>
+  <link rel="dns-prefetch" href="https://api.themoviedb.org">
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1062,6 +1067,18 @@
     }
     .ep-btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
     .ep-btn.watched { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+    .ep-btn.current { border-color: #ffffff; color: #ffffff; box-shadow: 0 0 0 1px var(--accent); }
+    @media (min-width: 641px) {
+      .detail-body .detail-actions {
+        position: sticky; top: 0; z-index: 6;
+        background: rgba(24, 24, 24, 0.96); backdrop-filter: blur(10px);
+        padding: 12px 0; margin: 0 0 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+      }
+    }
+    .pick-badge.new {
+      background: var(--accent); color: #fff; font-weight: 700;
+    }
 
     /* My List heart */
     .pick-fav {
@@ -1299,6 +1316,7 @@
     .browse-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px;
     }
+    .browse-grid .top10-card { min-width: 0; }
     .browse-grid .trending-card { flex: none; }
     .browse-more { text-align: center; margin-top: 32px; }
     .browse-more-btn {
@@ -1784,7 +1802,7 @@
   </div>
 
   <!-- My List -->
-  <div id="myListSection" style="display:none">
+  <div id="myListSection">
     <div class="sec-header scroll-anchor" id="navMyList">
       <div class="sec-title">My List</div>
       <div class="sec-count" id="myListCount"></div>
@@ -2205,6 +2223,13 @@ function esc(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 var BASE_TITLE = 'Streamr';
 function setPageTitle(name) { document.title = name ? (name + ' · Streamr') : BASE_TITLE; }
 
+function isNewRelease(item) {
+  var d = item.release_date || item.first_air_date;
+  if (!d) return false;
+  var rel = new Date(d).getTime();
+  if (isNaN(rel)) return false;
+  return (Date.now() - rel) < 45 * 86400000;
+}
 function matchScore(va) {
   if (!va || va < 3) return '';
   return Math.min(99, Math.max(61, Math.round(va * 10))) + '% Match';
@@ -2975,6 +3000,7 @@ function loadExternalFarsiSubtitles(id, type, season, episode) {
 }
 
 /* Progress tracking */
+var lastAutoAdvanceAt = 0;
 window.addEventListener('message', function(ev) {
   try {
     var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
@@ -3004,7 +3030,8 @@ window.addEventListener('message', function(ev) {
     else if (status === 'play') { evt.textContent = '▶'; }
     else if (status === 'ended' || status === 'completed') {
       evt.textContent = '✓'; time.textContent = 'Finished';
-      if (currentType === 'tv' && document.getElementById('epSel') && document.getElementById('epSel').checked) {
+      if (currentType === 'tv' && document.getElementById('epSel') && document.getElementById('epSel').checked && Date.now() - lastAutoAdvanceAt > 5000) {
+        lastAutoAdvanceAt = Date.now();
         var nextId = document.getElementById('tmdbId').value;
         var nextSeason = parseInt(document.getElementById('season').value, 10) || 1;
         var nextEpisode = (parseInt(document.getElementById('episode').value, 10) || 1) + 1;
@@ -3193,13 +3220,16 @@ function applyOverview(type, id) {
   var el = document.getElementById('ovtext_' + ck);
   if (el && meta.overview) el.textContent = meta.overview;
   // Also update sub with rating
-  if (meta.rating) {
-    var sub = document.querySelector('#poster_'+ck+' ~ .pick-info .pick-sub');
-    if (sub && !sub.textContent.includes('★')) {
-      // already set in render, just update rating badge
-    }
+  if (meta.rating || meta.vote_average) {
     var rb = document.getElementById('rating_'+ck);
     if (rb) { rb.textContent = '★ ' + meta.rating; rb.classList.add('on'); }
+    var sub = document.querySelector('#poster_'+ck)?.parentElement?.querySelector('.pick-sub');
+    if (!sub) sub = document.getElementById('poster_'+ck)?.closest('.pick')?.querySelector('.pick-sub');
+    if (sub && meta.rating) {
+      var ms = meta.vote_average ? matchScore(meta.vote_average) : '';
+      var yearPart = sub.textContent.split('·')[0].trim();
+      sub.textContent = yearPart + (ms ? ' · ' + ms : '') + (meta.rating ? ' · ★ ' + meta.rating : '');
+    }
   }
 }
 
@@ -3457,10 +3487,11 @@ function posterCardHTML(item, i, opts) {
     ? '<img src="'+TMDB_IMG+pSize+posterPath+'" alt="" loading="lazy" decoding="async" onload="this.closest(\'.pick-poster\').classList.add(\'has-img\')">'
     : '';
   var rating = item.vote_average ? '★ ' + item.vote_average.toFixed(1) : (item.rating ? '★ '+item.rating : '');
+  var badge = isNewRelease(item) ? '<div class="pick-badge new">NEW</div>' : '<div class="pick-badge">'+type.toUpperCase()+'</div>';
   var posterBlock = '<div class="pick-poster" style="background:var(--surface2)">'
     + '<span class="poster-icon" style="font-size:28px">&#127909;</span>'
     + poster
-    + '<div class="pick-badge">'+type.toUpperCase()+'</div>'
+    + badge
     + hideBtnHTML(item.id, type, title)
     + '</div>';
   var infoBlock = '<div class="trending-info"><div class="trending-title">'+title+'</div>'
@@ -3982,6 +4013,7 @@ function shareTitle(title, id, type) {
 
 /* Person filmography modal */
 function openPerson(id, name) {
+  setPageTitle(name || 'Cast');
   var card = document.getElementById('personCard');
   card.innerHTML = '<button class="person-close" onclick="closePerson()">&#10005;</button>'
     + '<div class="person-head"><div class="skel" style="width:110px;height:110px;border-radius:14px;flex:0 0 110px"></div>'
@@ -3994,6 +4026,7 @@ function openPerson(id, name) {
 
   tmdbFetch('/person/' + id + '?append_to_response=combined_credits').then(function(p) {
     if (!p) { closePerson(); return; }
+    setPageTitle(p.name || name);
     var photo = p.profile_path
       ? '<img class="person-photo" src="'+TMDB_IMG+'w185'+p.profile_path+'" alt="">'
       : '<div class="person-photo-ph">&#128100;</div>';
@@ -4033,7 +4066,12 @@ function openPerson(id, name) {
 }
 function closePerson() {
   document.getElementById('personBackdrop').classList.remove('on');
-  if (!document.getElementById('detailBackdrop').classList.contains('on')) document.body.style.overflow = '';
+  var detailOn = document.getElementById('detailBackdrop').classList.contains('on');
+  if (!detailOn) document.body.style.overflow = '';
+  else {
+    var dt = document.querySelector('.detail-title');
+    setPageTitle(dt ? dt.textContent : undefined);
+  }
 }
 document.getElementById('personBackdrop').addEventListener('click', function(e){ if (e.target === this) closePerson(); });
 
@@ -4045,15 +4083,26 @@ function loadEpisodes(showId, title) {
   grid.innerHTML = '<div style="color:var(--muted);font-size:12px">Loading...</div>';
   tmdbFetch('/tv/'+showId+'/season/'+season).then(function(d) {
     if (!d || !d.episodes) { grid.innerHTML=''; return; }
+    var hist = getHistory().find(function(x){ return x.key === 'tv_' + showId; });
+    var hs = hist ? parseInt(hist.s, 10) : 0;
+    var he = hist ? parseInt(hist.e, 10) : 0;
     grid.innerHTML = d.episodes.map(function(ep) {
-      return '<button class="ep-btn" title="'+esc(ep.name||'')+'" onclick="quickPlayTV('+showId+','+season+','+ep.episode_number+',\''+esc(title)+'\')">'+ep.episode_number+'</button>';
+      var watched = hs === parseInt(season, 10) && ep.episode_number < he;
+      var current = hs === parseInt(season, 10) && ep.episode_number === he;
+      var cls = 'ep-btn' + (watched ? ' watched' : '') + (current ? ' current' : '');
+      return '<button class="'+cls+'" title="'+esc(ep.name||'')+'" onclick="quickPlayTV('+showId+','+season+','+ep.episode_number+',\''+esc(title)+'\')">'+ep.episode_number+'</button>';
     }).join('');
   });
 }
 
 function quickPlayTV(id, s, e, title) {
+  var hist = getHistory().find(function(x){ return x.key === 'tv_' + id; });
+  var progress = 0;
+  if (hist && parseInt(hist.s, 10) === parseInt(s, 10) && parseInt(hist.e, 10) === parseInt(e, 10) && (hist.pct > 2 || hist.ts > 0)) {
+    progress = hist.ts || 0;
+  }
   closeDetail();
-  loadPlayer(id, 'tv', s, e, 0, title);
+  loadPlayer(id, 'tv', s, e, progress, title);
 }
 
 function closeDetail() {
@@ -4122,7 +4171,21 @@ function lazyLoad(anchorId, fn) {
       if (dx < 0) gotoSpot((spotIndex + 1) % len);
       else gotoSpot((spotIndex - 1 + len) % len);
     }, { passive: true });
+    spotlight.addEventListener('dblclick', function() {
+      var s = spotlightSlides[spotIndex];
+      if (s) quickPlay(s.id, s.media_type, s.title || s.name);
+    });
   }
+
+  document.querySelectorAll('.scroll-wrap').forEach(function(wrap) {
+    wrap.addEventListener('wheel', function(ev) {
+      var row = wrap.querySelector('.trending-row, .featured-row, .cw-row');
+      if (!row || row.scrollWidth <= row.clientWidth) return;
+      if (Math.abs(ev.deltaY) < Math.abs(ev.deltaX)) return;
+      ev.preventDefault();
+      row.scrollBy({ left: ev.deltaY, behavior: 'auto' });
+    }, { passive: false });
+  });
 })();
 
 var scrollSpyObserver = null;
