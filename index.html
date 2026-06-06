@@ -1144,7 +1144,13 @@
     }
     .ep-btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
     .ep-btn.watched { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
-    .ep-btn.current { border-color: #ffffff; color: #ffffff; box-shadow: 0 0 0 1px var(--accent); }
+    .ep-btn.done { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .ep-btn.current { border-color: #ffffff; color: #ffffff; box-shadow: 0 0 0 1px var(--accent); position: relative; overflow: hidden; }
+    .ep-btn.current .ep-pct {
+      position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent);
+    }
+    .cw-title { cursor: pointer; }
+    .cw-title:hover { color: #fff; }
     @media (min-width: 641px) {
       .detail-body .detail-actions {
         position: sticky; top: 0; z-index: 6;
@@ -2187,6 +2193,18 @@
       <div class="modal-hint">Free key from <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--accent)">themoviedb.org/settings/api</a>. Enables poster images and search.</div>
     </div>
     <div class="modal-field">
+      <label>SubDL API Key <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <input type="text" id="subdlKeyInput" placeholder="For auto Farsi subtitles">
+      <div class="modal-hint">Free key from <a href="https://subdl.com/api" target="_blank" style="color:var(--accent)">subdl.com/api</a>. Auto-loads Persian subs in the player.</div>
+    </div>
+    <div class="modal-field">
+      <label>Default Player</label>
+      <select class="pref-select" id="settingsPlayerSource" style="width:100%;max-width:none">
+        <option value="cinezo">Cinezo</option>
+        <option value="vidking">VidKing</option>
+      </select>
+    </div>
+    <div class="modal-field">
       <label>Hide Genres</label>
       <div class="genre-hide-grid" id="genreHideGrid"></div>
       <div class="modal-hint">Tap a genre to hide it everywhere on the app.</div>
@@ -2212,6 +2230,7 @@ var PLAYER_SOURCES = ['cinezo', 'vidking'];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
 var playerLoadTimer = null, playerGotProgress = false, playerSourceFailCount = 0, playerAutoFallback = true;
+var prefetchDetailCache = {};
 
 var GRAD = [
   ['#1a1a2e','#16213e'],['#0f3460','#533483'],['#2d1b33','#1a0a0a'],['#0a2744','#1a4a7a'],
@@ -2713,10 +2732,13 @@ function buildUrl(id, type, s, e, progress) {
 
 function setPlayerSource(source) {
   currentPlayerSource = normalizePlayerSource(source);
+  try { localStorage.setItem('streamr_player_source', currentPlayerSource); } catch(e) {}
   var sourceEl = document.getElementById('playerSource');
   if (sourceEl && sourceEl.value !== currentPlayerSource) sourceEl.value = currentPlayerSource;
+  var settingsSrc = document.getElementById('settingsPlayerSource');
+  if (settingsSrc && settingsSrc.value !== currentPlayerSource) settingsSrc.value = currentPlayerSource;
   var provider = document.getElementById('ptbProvider');
-  if (provider) provider.textContent = getPlayerSourceLabel(source);
+  if (provider) provider.textContent = getPlayerSourceLabel(currentPlayerSource);
   if (document.body.classList.contains('player-mode') && lastPlayerRequest) {
     loadPlayer(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e, lastPlayerRequest.progress, lastPlayerRequest.title);
   }
@@ -3407,7 +3429,7 @@ function renderCW() {
       + '<div class="cw-prog-bar"><div class="cw-prog-fill" style="width:'+p+'%"></div></div>'
       + '<div class="cw-hover"><div class="cw-play-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>'
       + '</div>'
-      + '<div class="cw-body"><div class="cw-title">'+item.title+'</div><div class="cw-meta">'+meta+'</div></div>'
+      + '<div class="cw-body"><div class="cw-title" onclick="openDetail(\''+esc(item.id)+'\',\''+item.type+'\',\''+esc(item.title)+'\')">'+item.title+'</div><div class="cw-meta">'+meta+'</div></div>'
       + '<div class="cw-actions">'
       + '<button class="btn-sm hi" onclick="loadPlayer(\''+esc(item.id)+'\',\''+item.type+'\',\''+item.s+'\',\''+item.e+'\','+item.ts+',\''+esc(item.title)+'\')">Resume</button>'
       + '<button class="btn-sm" onclick="loadPlayer(\''+esc(item.id)+'\',\''+item.type+'\',\''+item.s+'\',\''+item.e+'\',0,\''+esc(item.title)+'\')">Restart</button>'
@@ -3592,6 +3614,10 @@ function toggleGenreHide(gid, el) {
 }
 function openSettings() {
   document.getElementById('tmdbKeyInput').value = TMDB_KEY;
+  var subIn = document.getElementById('subdlKeyInput');
+  if (subIn) subIn.value = SUBDL_KEY;
+  var srcIn = document.getElementById('settingsPlayerSource');
+  if (srcIn) srcIn.value = normalizePlayerSource(currentPlayerSource);
   renderGenreHideChips();
   renderHiddenTitlesList();
   document.getElementById('settingsModal').classList.add('on');
@@ -3611,10 +3637,36 @@ function saveSettings() {
   TMDB_KEY = key;
   if (key) localStorage.setItem('streamr_tmdb_key', key);
   else localStorage.removeItem('streamr_tmdb_key');
+  var subKey = document.getElementById('subdlKeyInput');
+  SUBDL_KEY = subKey ? subKey.value.trim() : '';
+  if (SUBDL_KEY) localStorage.setItem('streamr_subdl_key', SUBDL_KEY);
+  else localStorage.removeItem('streamr_subdl_key');
+  var srcIn = document.getElementById('settingsPlayerSource');
+  if (srcIn) setPlayerSource(srcIn.value);
   localStorage.setItem('streamr_hidden_genres', JSON.stringify(HIDDEN_GENRES));
   closeSettings();
   refreshAllRows();
   showToast('Settings saved');
+}
+
+function savePlayerPrefs() {
+  try {
+    localStorage.setItem('streamr_autoplay', document.getElementById('autoPlay').checked ? '1' : '0');
+    var epSel = document.getElementById('epSel');
+    if (epSel) localStorage.setItem('streamr_epsel', epSel.checked ? '1' : '0');
+  } catch(e) {}
+}
+
+function initPlayerPrefs() {
+  try {
+    var src = localStorage.getItem('streamr_player_source');
+    if (src) setPlayerSource(src);
+    var ap = localStorage.getItem('streamr_autoplay');
+    if (ap !== null) document.getElementById('autoPlay').checked = ap === '1';
+    var ep = localStorage.getItem('streamr_epsel');
+    var epSel = document.getElementById('epSel');
+    if (ep !== null && epSel) epSel.checked = ep === '1';
+  } catch(e) {}
 }
 
 /* Quick nav */
@@ -3707,6 +3759,10 @@ document.getElementById('settingsModal').addEventListener('click', function(e) {
 
 /* Keyboard */
 document.getElementById('tmdbId').addEventListener('keydown', function(ev) { if (ev.key === 'Enter') loadPlayer(); });
+document.getElementById('autoPlay').addEventListener('change', savePlayerPrefs);
+var epSelEl = document.getElementById('epSel');
+if (epSelEl) epSelEl.addEventListener('change', savePlayerPrefs);
+initPlayerPrefs();
 
 /* Scroll arrows */
 function scrollRow(id, dir) {
@@ -3813,13 +3869,29 @@ function posterCardHTML(item, i, opts) {
     + '<div class="trending-meta">'+year+(rating?' · '+rating:'')+'</div></div>';
   var hoverBar = cardHoverBarHTML(item.id, type, title);
   if (opts.numbered) {
-    return '<div class="trending-card top10-card" onclick="openDetail('+item.id+',\''+type+'\',\''+esc(title)+'\')">'
+    return '<div class="trending-card top10-card" onclick="openDetail('+item.id+',\''+type+'\',\''+esc(title)+'\')" onmouseenter="prefetchDetail('+item.id+',\''+type+'\')">'
       + '<div class="top10-num">'+(i+1)+'</div>'
       + '<div class="top10-poster-wrap">'+posterBlock+infoBlock+hoverBar+'</div>'
       + '</div>';
   }
-  return '<div class="trending-card" onclick="openDetail('+item.id+',\''+type+'\',\''+esc(title)+'\')">'
+  return '<div class="trending-card" onclick="openDetail('+item.id+',\''+type+'\',\''+esc(title)+'\')" onmouseenter="prefetchDetail('+item.id+',\''+type+'\')">'
     + posterBlock + infoBlock + hoverBar + '</div>';
+}
+
+function prefetchDetail(id, type) {
+  var k = type + '_' + id;
+  if (prefetchDetailCache[k] || metaCache[k]) return;
+  prefetchDetailCache[k] = true;
+  tmdbFetch('/' + type + '/' + id).then(function(d) {
+    if (!d) return;
+    metaCache[k] = {
+      poster: d.poster_path, backdrop: d.backdrop_path,
+      rating: d.vote_average ? d.vote_average.toFixed(1) : '',
+      overview: d.overview || '',
+      genres: (d.genres || []).slice(0, 2).map(function(g){ return g.name; })
+    };
+    try { localStorage.setItem('streamr_meta_v1', JSON.stringify(metaCache)); } catch(e) {}
+  });
 }
 
 function renderPosterRow(items, containerId, opts) {
@@ -4288,8 +4360,14 @@ function openDetail(id, type, title) {
     document.getElementById('detailCard').innerHTML = html;
     setPageTitle(t);
 
-    if (type === 'tv' && d.seasons) loadEpisodes(id, t);
-    // scroll detail modal back to top on open
+    if (type === 'tv' && d.seasons) {
+      var histTv = getHistory().find(function(x){ return x.key === type + '_' + id; });
+      if (histTv && histTv.s) {
+        var sel = document.getElementById('seasonSelect');
+        if (sel && sel.querySelector('option[value="'+histTv.s+'"]')) sel.value = histTv.s;
+      }
+      loadEpisodes(id, t);
+    }
     document.getElementById('detailBackdrop').scrollTop = 0;
   });
 }
@@ -4401,11 +4479,17 @@ function loadEpisodes(showId, title) {
     var hist = getHistory().find(function(x){ return x.key === 'tv_' + showId; });
     var hs = hist ? parseInt(hist.s, 10) : 0;
     var he = hist ? parseInt(hist.e, 10) : 0;
+    var hp = hist ? (hist.pct || 0) : 0;
     grid.innerHTML = d.episodes.map(function(ep) {
-      var watched = hs === parseInt(season, 10) && ep.episode_number < he;
-      var current = hs === parseInt(season, 10) && ep.episode_number === he;
-      var cls = 'ep-btn' + (watched ? ' watched' : '') + (current ? ' current' : '');
-      return '<button class="'+cls+'" title="'+esc(ep.name||'')+'" onclick="quickPlayTV('+showId+','+season+','+ep.episode_number+',\''+esc(title)+'\')">'+ep.episode_number+'</button>';
+      var sn = parseInt(season, 10);
+      var done = hs === sn && ep.episode_number < he;
+      var current = hs === sn && ep.episode_number === he;
+      var completed = current && hp >= 90;
+      var watched = done || completed;
+      var cls = 'ep-btn' + (watched ? ' watched' : '') + (completed ? ' done' : '') + (current && !completed ? ' current' : '');
+      var tip = (ep.name || ('Episode ' + ep.episode_number)) + (current && hp > 2 ? ' · ' + Math.round(hp) + '%' : '');
+      var pctBar = current && hp > 2 && hp < 90 ? '<span class="ep-pct" style="width:'+Math.min(100, hp)+'%"></span>' : '';
+      return '<button class="'+cls+'" title="'+esc(tip)+'" onclick="quickPlayTV('+showId+','+season+','+ep.episode_number+',\''+esc(title)+'\')">'+ep.episode_number+pctBar+'</button>';
     }).join('');
   });
 }
