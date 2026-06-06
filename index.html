@@ -359,8 +359,85 @@
       font-size: 16px;
     }
     .ptb-close:hover { color: var(--text); background: var(--surface3); }
+    .ptb-ep {
+      font-family: var(--mono); font-size: 10px; font-weight: 700;
+      color: var(--muted); letter-spacing: 0.06em; flex-shrink: 0;
+    }
 
-    /* Progress strip */
+    /* Player loading overlay */
+    .player-loading {
+      position: absolute; inset: 0; z-index: 5;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; background: rgba(0,0,0,0.88); color: var(--text2);
+      font-size: 13px; font-weight: 600;
+      transition: opacity 280ms ease;
+    }
+    .player-loading.off { opacity: 0; pointer-events: none; }
+    .player-loading-spin {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 3px solid #333; border-top-color: var(--accent);
+      animation: spin 0.75s linear infinite;
+    }
+    .player-loading.error .player-loading-spin { border-top-color: #888; animation: none; opacity: 0.5; }
+
+    /* Player dock (controls under video) */
+    .player-dock { display: none; background: #181818; border-bottom: 1px solid var(--border); }
+    body.player-mode .player-dock.on { display: block; }
+    body.player-mode .prog-strip { display: none !important; }
+    .dock-progress { height: 3px; background: #2a2a2a; }
+    .dock-progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 1s linear; border-radius: 0 2px 2px 0; }
+    .dock-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px clamp(16px, 4vw, 56px); flex-wrap: wrap;
+    }
+    .dock-time {
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+      min-width: 88px; white-space: nowrap;
+    }
+    .dock-status {
+      font-size: 11px; color: var(--text2); font-weight: 600;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .dock-status-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+    .dock-status.paused .dock-status-dot { background: #888; box-shadow: none; }
+    .dock-transport { display: none; align-items: center; gap: 6px; }
+    .dock-transport.on { display: flex; }
+    .dock-spacer { flex: 1; min-width: 8px; }
+    .dock-btn {
+      width: 36px; height: 36px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--surface2);
+      color: var(--text2); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: color 120ms, border-color 120ms, background 120ms;
+      flex-shrink: 0;
+    }
+    .dock-btn svg { width: 16px; height: 16px; fill: currentColor; }
+    .dock-btn:hover:not(:disabled) { color: var(--text); border-color: var(--text2); background: var(--surface3); }
+    .dock-btn:disabled { opacity: 0.35; cursor: default; }
+    .dock-sub {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      gap: 6px; overflow-x: auto; scrollbar-width: none;
+      padding-top: 8px; padding-bottom: 10px;
+    }
+    .dock-sub::-webkit-scrollbar { display: none; }
+    .dock-sub-status {
+      font-size: 11px; color: var(--muted); flex: 1; min-width: 100px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .dock-chip {
+      height: 28px; padding: 0 11px; border-radius: 14px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text2); font-family: var(--sans); font-size: 11px; font-weight: 600;
+      cursor: pointer; white-space: nowrap; flex-shrink: 0;
+      transition: border-color 120ms, color 120ms;
+    }
+    .dock-chip:hover:not(:disabled) { border-color: var(--text2); color: var(--text); }
+    .dock-chip:disabled { opacity: 0.38; cursor: default; }
+
+    /* Progress strip (legacy fallback) */
     .prog-strip {
       height: 0; overflow: hidden; opacity: 0;
       font-family: var(--mono); font-size: 11px; color: var(--muted);
@@ -1252,6 +1329,16 @@
       body.player-mode .ctrl-inner {
         max-width: 1180px;
       }
+      body.player-mode .player-dock.on {
+        display: flex; flex-direction: column; align-items: center;
+        background: #000; border-bottom: none;
+      }
+      body.player-mode .player-dock .dock-progress,
+      body.player-mode .player-dock .dock-row {
+        width: min(1180px, calc(100vw - 64px));
+        padding-left: 0; padding-right: 0;
+      }
+      body.player-mode .player-dock .dock-row { padding-left: 4px; padding-right: 4px; }
     }
 
     @media (max-width: 640px) {
@@ -1470,6 +1557,9 @@
       .ptb-source { width: 84px; padding: 0 8px; font-size: 11px; }
       body.player-mode .ctrl-bar { display: none !important; }
       body.player-mode .player-inner { min-height: 320px; }
+      body.player-mode .player-dock .dock-row { padding: 8px 14px; }
+      body.player-mode .player-dock .dock-btn { width: 40px; height: 40px; }
+      body.player-mode .player-dock .dock-chip { min-height: 36px; padding: 0 12px; }
       body.player-mode .ctrl-inner {
         display: grid;
         grid-template-columns: 1fr;
@@ -1715,15 +1805,49 @@
 <!-- Player section (hidden until play) -->
 <div class="player-section">
   <div class="player-title-bar" id="playerTitleBar">
+    <span class="ptb-ep" id="ptbEp"></span>
     <span class="ptb-title" id="ptbTitle">Now Playing</span>
     <div class="ptb-actions">
       <span class="ptb-provider" id="ptbProvider">Best Player</span>
-      <button class="ptb-source" onclick="tryNextSource()" title="Try another player">Try next</button>
-      <button class="ptb-close" onclick="goHome()" title="Close player">&#10005;</button>
+      <button class="ptb-close" onclick="goHome()" title="Close player (Esc)">&#10005;</button>
     </div>
   </div>
   <div class="player-wrap" id="playerWrap">
     <div class="player-inner" id="playerInner"></div>
+  </div>
+  <div class="player-dock" id="playerDock">
+    <div class="dock-progress"><div class="dock-progress-fill" id="dockProgFill"></div></div>
+    <div class="dock-row dock-main">
+      <div class="dock-status" id="dockStatus"><span class="dock-status-dot"></span><span id="dockStatusText">Loading</span></div>
+      <span class="dock-time" id="dockTime">0:00 / 0:00</span>
+      <div class="dock-transport" id="dockTransport">
+        <button class="dock-btn" id="dockPrevEp" type="button" onclick="playerPrevEpisode()" title="Previous episode (P)" disabled>
+          <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+        </button>
+        <button class="dock-btn" id="dockNextEp" type="button" onclick="playerNextEpisode()" title="Next episode (N)">
+          <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z"/></svg>
+        </button>
+      </div>
+      <div class="dock-spacer"></div>
+      <button class="dock-btn" type="button" onclick="togglePlayerFullscreen()" title="Fullscreen (F)">
+        <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm12 0h-2v3h-3v2h5v-5zM7 3v2h3v3h2V5h5V3H7zm12 10h-2V7h-3V5h5v8z"/></svg>
+      </button>
+      <button class="dock-btn" type="button" onclick="togglePlayerPiP()" title="Picture in Picture">
+        <svg viewBox="0 0 24 24"><path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>
+      </button>
+      <button class="dock-btn" type="button" onclick="tryNextSource()" title="Switch player source">
+        <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+      </button>
+    </div>
+    <div class="dock-row dock-sub" id="dockSubRow">
+      <span class="dock-sub-status" id="subtitleStatus">Upload Farsi .srt or add SubDL key in Settings</span>
+      <input type="file" id="subUpload" accept=".srt,.vtt" hidden onchange="handleSubtitleUpload(this)">
+      <button class="dock-chip" type="button" onclick="document.getElementById('subUpload').click()">Upload .srt</button>
+      <button class="dock-chip" id="subClockBtn" type="button" onclick="toggleSubtitleClock()" disabled>Start subs</button>
+      <button class="dock-chip" id="subBackBtn" type="button" onclick="syncSubtitle(-2)" disabled>−2s</button>
+      <button class="dock-chip" id="subForwardBtn" type="button" onclick="syncSubtitle(2)" disabled>+2s</button>
+      <button class="dock-chip" type="button" onclick="openFarsiSubtitleSearch()">Find subs</button>
+    </div>
   </div>
   <div class="prog-strip" id="progStrip">
     <span id="progEvt">&#9654;</span>
@@ -2088,6 +2212,7 @@ var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = n
 var PLAYER_SOURCES = ['cinezo', 'vidking', 'vidsrc'];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
+var playerLoadTimer = null, playerGotProgress = false, playerSourceFailCount = 0, playerAutoFallback = true;
 
 var GRAD = [
   ['#1a1a2e','#16213e'],['#0f3460','#533483'],['#2d1b33','#1a0a0a'],['#0a2744','#1a4a7a'],
@@ -2567,6 +2692,7 @@ function buildUrl(id, type, s, e, progress) {
     cz.set('primarycolor', currentColor);
     cz.set('secondarycolor', '111827');
     cz.set('iconcolor', 'ffffff');
+    if (progress && progress > 10) cz.set('startAt', Math.floor(progress));
     return czBase + '?' + cz.toString();
   }
 
@@ -2607,8 +2733,182 @@ function tryNextSource() {
   var current = currentPlayerSource || 'cinezo';
   var idx = PLAYER_SOURCES.indexOf(current);
   var next = PLAYER_SOURCES[(idx + 1) % PLAYER_SOURCES.length] || 'cinezo';
+  playerAutoFallback = false;
   setPlayerSource(next);
   showToast('Trying ' + getPlayerSourceLabel(next));
+}
+
+function getPlayerIframe() {
+  var inner = document.getElementById('playerInner');
+  return inner ? inner.querySelector('iframe') : null;
+}
+
+function formatPlayerTitle(title, type, s, e) {
+  if (!title) return type === 'tv' ? 'TV Show' : 'Movie';
+  return title;
+}
+
+function updatePlayerChrome(type, s, e, title) {
+  var epEl = document.getElementById('ptbEp');
+  var transport = document.getElementById('dockTransport');
+  var prevBtn = document.getElementById('dockPrevEp');
+  if (type === 'tv') {
+    if (epEl) epEl.textContent = 'S' + s + ' · E' + e;
+    if (transport) transport.classList.add('on');
+    if (prevBtn) prevBtn.disabled = (parseInt(s, 10) || 1) <= 1 && (parseInt(e, 10) || 1) <= 1;
+  } else {
+    if (epEl) epEl.textContent = '';
+    if (transport) transport.classList.remove('on');
+  }
+  document.getElementById('ptbTitle').textContent = formatPlayerTitle(title, type, s, e);
+  document.getElementById('playerDock').classList.add('on');
+  refreshSubtitleButtons();
+}
+
+function clearPlayerLoadWatch() {
+  if (playerLoadTimer) { clearTimeout(playerLoadTimer); playerLoadTimer = null; }
+}
+
+function dismissPlayerLoading(ok) {
+  var el = document.getElementById('playerLoading');
+  if (!el) return;
+  el.classList.toggle('error', ok === false);
+  el.classList.add('off');
+}
+
+function showPlayerLoading() {
+  playerGotProgress = false;
+  var inner = document.getElementById('playerInner');
+  var existing = document.getElementById('playerLoading');
+  if (existing) {
+    existing.classList.remove('off', 'error');
+    existing.querySelector('span').textContent = 'Loading stream…';
+    return;
+  }
+  var load = document.createElement('div');
+  load.className = 'player-loading';
+  load.id = 'playerLoading';
+  load.innerHTML = '<div class="player-loading-spin"></div><span>Loading stream…</span>';
+  inner.appendChild(load);
+}
+
+function armPlayerLoadWatch() {
+  clearPlayerLoadWatch();
+  playerLoadTimer = setTimeout(function() {
+    if (playerGotProgress) return;
+    if (!playerAutoFallback || playerSourceFailCount >= PLAYER_SOURCES.length - 1) {
+      var el = document.getElementById('playerLoading');
+      if (el) {
+        el.classList.add('error');
+        el.querySelector('span').textContent = 'Stream slow — tap ↻ to try another source';
+      }
+      setDockStatus('Buffering…', true);
+      return;
+    }
+    playerSourceFailCount++;
+    showToast('Trying backup player…');
+    var current = currentPlayerSource || 'cinezo';
+    var idx = PLAYER_SOURCES.indexOf(current);
+    var next = PLAYER_SOURCES[(idx + 1) % PLAYER_SOURCES.length] || 'cinezo';
+    setPlayerSource(next);
+  }, 13000);
+}
+
+function setDockStatus(text, paused) {
+  var box = document.getElementById('dockStatus');
+  var label = document.getElementById('dockStatusText');
+  if (label) label.textContent = text || 'Playing';
+  if (box) box.classList.toggle('paused', !!paused);
+}
+
+function updateDockProgress(current, duration, pct) {
+  var fill = document.getElementById('dockProgFill');
+  var time = document.getElementById('dockTime');
+  if (fill) fill.style.width = Math.min(100, pct || 0) + '%';
+  if (time) time.textContent = fmt(current) + ' / ' + fmt(duration);
+}
+
+function togglePlayerFullscreen() {
+  var el = document.getElementById('playerInner');
+  if (!el) return;
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    var req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (req) req.call(el).catch(function() { showToast('Fullscreen unavailable'); });
+  } else {
+    var exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+    if (exit) exit.call(document);
+  }
+}
+
+function togglePlayerPiP() {
+  var iframe = getPlayerIframe();
+  if (!iframe) return;
+  if (document.pictureInPictureElement === iframe) {
+    document.exitPictureInPicture().catch(function() {});
+    return;
+  }
+  if (iframe.requestPictureInPicture) {
+    iframe.requestPictureInPicture().catch(function() { showToast('PiP not supported'); });
+  } else {
+    showToast('PiP not supported in this browser');
+  }
+}
+
+function playerBumpEpisode(id, season, episode, title) {
+  showToast('Playing S' + season + ' E' + episode + '…');
+  setTimeout(function() {
+    document.getElementById('season').value = season;
+    document.getElementById('episode').value = episode;
+    loadPlayer(id, 'tv', season, episode, 0, title);
+  }, 1100);
+}
+
+function advanceToNextEpisode() {
+  if (currentType !== 'tv') return;
+  var id = document.getElementById('tmdbId').value;
+  var season = parseInt(document.getElementById('season').value, 10) || 1;
+  var episode = parseInt(document.getElementById('episode').value, 10) || 1;
+  var title = (lastPlayerRequest && lastPlayerRequest.title) || document.getElementById('ptbTitle').textContent;
+  if (!id) return;
+  if (!TMDB_KEY) {
+    playerBumpEpisode(id, season, episode + 1, title);
+    return;
+  }
+  tmdbFetch('/tv/' + id).then(function(show) {
+    var seasons = (show && show.number_of_seasons) || season;
+    return tmdbFetch('/tv/' + id + '/season/' + season).then(function(sd) {
+      var maxEp = (sd && sd.episodes && sd.episodes.length) || episode;
+      if (episode < maxEp) playerBumpEpisode(id, season, episode + 1, title);
+      else if (season < seasons) playerBumpEpisode(id, season + 1, 1, title);
+      else showToast('You finished the series');
+    });
+  }).catch(function() { playerBumpEpisode(id, season, episode + 1, title); });
+}
+
+function playerNextEpisode() {
+  if (currentType !== 'tv') return;
+  advanceToNextEpisode();
+}
+
+function playerPrevEpisode() {
+  if (currentType !== 'tv' || !lastPlayerRequest) return;
+  var id = lastPlayerRequest.id;
+  var season = parseInt(document.getElementById('season').value, 10) || 1;
+  var episode = parseInt(document.getElementById('episode').value, 10) || 1;
+  var title = lastPlayerRequest.title;
+  if (episode > 1) {
+    loadPlayer(id, 'tv', season, episode - 1, 0, title);
+    return;
+  }
+  if (season <= 1) return;
+  if (TMDB_KEY) {
+    tmdbFetch('/tv/' + id + '/season/' + (season - 1)).then(function(sd) {
+      var last = (sd && sd.episodes && sd.episodes.length) || 1;
+      loadPlayer(id, 'tv', season - 1, last, 0, title);
+    }).catch(function() { loadPlayer(id, 'tv', season - 1, 1, 0, title); });
+  } else {
+    loadPlayer(id, 'tv', season - 1, 1, 0, title);
+  }
 }
 
 function setSubtitleLang(lang) {
@@ -2660,13 +2960,22 @@ function loadPlayer(id, type, s, e, progress, title) {
   var url = buildUrl(id, type, s, e, progress);
   var inner = document.getElementById('playerInner');
   inner.innerHTML = '';
+  showPlayerLoading();
+  setDockStatus('Loading', true);
+  updateDockProgress(0, 0, 0);
+  armPlayerLoadWatch();
+
   var iframe = document.createElement('iframe');
   iframe.src = url;
   iframe.setAttribute('frameborder', '0');
   iframe.setAttribute('allowfullscreen', 'true');
   iframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *');
-  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
   iframe.setAttribute('referrerpolicy', 'no-referrer');
+  iframe.setAttribute('loading', 'eager');
+  iframe.addEventListener('load', function() {
+    if (!playerGotProgress) setDockStatus('Buffering', true);
+  });
   inner.appendChild(iframe);
   var sub = document.createElement('div');
   sub.className = 'subtitle-overlay';
@@ -2683,7 +2992,7 @@ function loadPlayer(id, type, s, e, progress, title) {
   sizeMobilePlayer();
   document.getElementById('heroSection').style.display = 'none';
   document.getElementById('playerTitleBar').classList.add('on');
-  document.getElementById('ptbTitle').textContent = title || (type + ' #' + id);
+  updatePlayerChrome(type, s, e, title || (type + ' #' + id));
   setPageTitle(title || (type + ' #' + id));
   document.getElementById('ptbProvider').textContent = getPlayerSourceLabel(currentPlayerSource);
 
@@ -2696,9 +3005,14 @@ function loadPlayer(id, type, s, e, progress, title) {
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
   saveHistory(id, type, s, e, title || (type + ' #' + id), progress || 0, 0, 0);
+  loadExternalFarsiSubtitles(id, type, s, e);
 }
 
 function goHome() {
+  clearPlayerLoadWatch();
+  playerGotProgress = false;
+  playerSourceFailCount = 0;
+  playerAutoFallback = true;
   document.getElementById('playerInner').innerHTML = '';
   lastPlayerRequest = null;
   externalSubtitles = [];
@@ -2710,10 +3024,17 @@ function goHome() {
   document.documentElement.style.removeProperty('--player-mobile-height');
   document.getElementById('playerWrap').classList.remove('open');
   document.getElementById('ctrlBar').classList.remove('on');
+  document.getElementById('playerDock').classList.remove('on');
   document.body.classList.remove('player-mode');
   document.getElementById('heroSection').style.display = '';
   document.getElementById('playerTitleBar').classList.remove('on');
   document.getElementById('progStrip').classList.remove('on');
+  document.getElementById('ptbEp').textContent = '';
+  updateDockProgress(0, 0, 0);
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    var exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) exit.call(document);
+  }
   document.getElementById('tmdbId').value = '';
   setPageTitle();
   var y = 0;
@@ -3015,35 +3336,36 @@ window.addEventListener('message', function(ev) {
     var current = d.currentTime || d.player_progress || 0;
     var duration = d.duration || d.player_duration || 0;
     if (status === 'timeupdate' || status === 'playing') {
+      if (!playerGotProgress) {
+        playerGotProgress = true;
+        playerSourceFailCount = 0;
+        clearPlayerLoadWatch();
+        dismissPlayerLoading(true);
+      }
       strip.classList.add('on');
       evt.textContent = '▶';
       time.textContent = fmt(current) + ' / ' + fmt(duration);
       var p = d.progress || (duration ? (current / duration) * 100 : 0);
       pct.textContent = p.toFixed(1) + '%';
       fill.style.width = Math.min(100, p) + '%';
+      updateDockProgress(current, duration, p);
+      setDockStatus(status === 'playing' ? 'Playing' : 'Playing', false);
       var id = document.getElementById('tmdbId').value;
       updateExternalSubtitle(current);
       if (id && current > 5) {
         saveHistory(id, currentType, document.getElementById('season').value, document.getElementById('episode').value, null, current, duration, p);
       }
-    } else if (status === 'pause' || status === 'paused') { evt.textContent = '⏸'; }
-    else if (status === 'play') { evt.textContent = '▶'; }
+    } else if (status === 'pause' || status === 'paused') {
+      evt.textContent = '⏸';
+      setDockStatus('Paused', true);
+    } else if (status === 'play') { evt.textContent = '▶'; setDockStatus('Playing', false); }
     else if (status === 'ended' || status === 'completed') {
       evt.textContent = '✓'; time.textContent = 'Finished';
+      setDockStatus('Finished', true);
+      updateDockProgress(duration || 100, duration || 100, 100);
       if (currentType === 'tv' && document.getElementById('epSel') && document.getElementById('epSel').checked && Date.now() - lastAutoAdvanceAt > 5000) {
         lastAutoAdvanceAt = Date.now();
-        var nextId = document.getElementById('tmdbId').value;
-        var nextSeason = parseInt(document.getElementById('season').value, 10) || 1;
-        var nextEpisode = (parseInt(document.getElementById('episode').value, 10) || 1) + 1;
-        var nextTitle = document.getElementById('ptbTitle').textContent;
-        if (nextId) {
-          showToast('Playing next episode…');
-          setTimeout(function() {
-            document.getElementById('season').value = nextSeason;
-            document.getElementById('episode').value = nextEpisode;
-            loadPlayer(nextId, 'tv', nextSeason, nextEpisode, 0, nextTitle);
-          }, 1400);
-        }
+        advanceToNextEpisode();
       }
     }
   } catch(err) {}
@@ -4116,10 +4438,20 @@ document.getElementById('detailBackdrop').addEventListener('click', function(e) 
 });
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      var exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) { exit.call(document); return; }
+    }
     if (document.getElementById('trailerBackdrop').classList.contains('on')) { closeTrailer(); return; }
     if (document.getElementById('personBackdrop').classList.contains('on')) { closePerson(); return; }
     if (document.getElementById('detailBackdrop').classList.contains('on')) { closeDetail(); return; }
+    if (document.body.classList.contains('player-mode')) { goHome(); return; }
     closeSettings(); closeBrowse();
+  }
+  if (document.body.classList.contains('player-mode') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT' && document.activeElement.tagName !== 'TEXTAREA') {
+    if (e.key === 'f' || e.key === 'F') { e.preventDefault(); togglePlayerFullscreen(); return; }
+    if (currentType === 'tv' && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); playerNextEpisode(); return; }
+    if (currentType === 'tv' && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); playerPrevEpisode(); return; }
   }
   // "/" focuses search
   if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT' && document.activeElement.tagName !== 'TEXTAREA') {
