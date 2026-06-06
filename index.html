@@ -44,6 +44,7 @@
     /* Animations */
     @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes rowIn { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
     @keyframes shimmer { from { background-position: -400px 0; } to { background-position: 400px 0; } }
     .anim-up { animation: fadeUp 500ms ease both; }
     .anim-in { animation: fadeIn 400ms ease both; }
@@ -412,6 +413,7 @@
       letter-spacing: 0.08em; text-transform: uppercase;
     }
     .sp-rating { color: #46d369; font-weight: 700; font-size: 14px; }
+    .sp-match { color: #46d369; font-weight: 700; font-size: 14px; }
     .sp-meta-txt { color: var(--text2); font-size: 14px; }
     .spotlight-title {
       font-family: var(--display);
@@ -676,6 +678,52 @@
     .trending-card:hover .trending-info { opacity: 1; }
     .trending-title { font-size: 13px; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .trending-meta { font-size: 11px; color: var(--text2); margin-top: 3px; }
+    .trending-row.row-anim .trending-card { animation: rowIn 0.42s ease both; }
+    .trending-row.row-anim .trending-card:nth-child(1) { animation-delay: 0.02s; }
+    .trending-row.row-anim .trending-card:nth-child(2) { animation-delay: 0.05s; }
+    .trending-row.row-anim .trending-card:nth-child(3) { animation-delay: 0.08s; }
+    .trending-row.row-anim .trending-card:nth-child(4) { animation-delay: 0.11s; }
+    .trending-row.row-anim .trending-card:nth-child(5) { animation-delay: 0.14s; }
+    .trending-row.row-anim .trending-card:nth-child(n+6) { animation-delay: 0.17s; }
+    @media (min-width: 641px) {
+      .trending-card .card-hover-bar {
+        display: flex; align-items: center; gap: 6px;
+        padding: 10px 8px 8px; margin-top: -2px;
+        background: #181818; border-radius: 0 0 var(--rl) var(--rl);
+        border: 1px solid rgba(255,255,255,0.08); border-top: none;
+        opacity: 0; max-height: 0; overflow: hidden;
+        transition: opacity 0.22s ease, max-height 0.22s ease, padding 0.22s ease;
+        pointer-events: none;
+      }
+      .trending-card:hover .card-hover-bar {
+        opacity: 1; max-height: 52px; pointer-events: auto;
+      }
+      .trending-card:not(.top10-card):hover {
+        transform: scale(1.22) translateY(-10px);
+        box-shadow: 0 18px 40px rgba(0,0,0,0.65);
+      }
+      .top10-card:hover { box-shadow: 0 18px 40px rgba(0,0,0,0.65); }
+      .chb-play {
+        flex: 1; height: 32px; border: none; border-radius: 4px;
+        background: #fff; color: #000; font-size: 12px; font-weight: 700;
+        cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      }
+      .chb-play svg { width: 14px; height: 14px; fill: #000; }
+      .chb-icon {
+        width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+        border: 2px solid rgba(255,255,255,0.35); background: rgba(42,42,42,0.95);
+        color: var(--text); cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center;
+        transition: border-color 150ms, background 150ms;
+      }
+      .chb-icon:hover { border-color: #fff; background: rgba(60,60,60,0.95); }
+      .chb-icon.faved svg { fill: var(--accent); stroke: var(--accent); }
+      .chb-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+    }
+    .sr-recent-label {
+      padding: 10px 14px 6px; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+    }
     .feat-card {
       flex: 0 0 clamp(280px, 32vw, 420px); scroll-snap-align: start;
       position: relative; border-radius: var(--rl); overflow: hidden;
@@ -1291,6 +1339,7 @@
       .picks-grid, .genre-tabs { padding: 0 16px; }
       .trending-info { position: static; opacity: 1; background: none; padding: 6px 0 0; }
       .trending-card:hover { transform: none; }
+      .trending-card .card-hover-bar { display: none !important; }
       .trending-card .pick-poster { box-shadow: none; }
       .sec-title { font-size: 17px; }
       .sec-count { font-size: 11px; }
@@ -2085,6 +2134,56 @@ function fmt(sec) {
 }
 function esc(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 
+function matchScore(va) {
+  if (!va || va < 3) return '';
+  return Math.min(99, Math.max(61, Math.round(va * 10))) + '% Match';
+}
+
+function setDetailHash(id, type) {
+  try { history.replaceState(null, '', '#' + type + '/' + id); } catch(e) {}
+}
+function clearDetailHash() {
+  if (!location.hash) return;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch(e) {}
+}
+
+var RK_SEARCH = 'streamr_recent_search_v1';
+function getRecentSearches() { try { return JSON.parse(localStorage.getItem(RK_SEARCH)) || []; } catch(e) { return []; } }
+function pushRecentSearch(q) {
+  q = String(q || '').trim();
+  if (q.length < 2) return;
+  var list = getRecentSearches().filter(function(x){ return x.toLowerCase() !== q.toLowerCase(); });
+  list.unshift(q);
+  try { localStorage.setItem(RK_SEARCH, JSON.stringify(list.slice(0, 8))); } catch(e) {}
+}
+function showRecentSearches(resultsEl) {
+  var list = getRecentSearches();
+  if (!list.length) { resultsEl.classList.remove('on'); return; }
+  resultsEl.innerHTML = '<div class="sr-recent-label">Recent searches</div>'
+    + list.map(function(q) {
+      return '<div class="sr-item" onclick="runRecentSearch(\''+esc(q)+'\')">'
+        + '<div class="sr-placeholder" style="display:flex;align-items:center;justify-content:center;font-size:14px">&#128269;</div>'
+        + '<div class="sr-info"><div class="sr-title">'+q+'</div></div></div>';
+    }).join('');
+  resultsEl.classList.add('on');
+}
+function runRecentSearch(q) {
+  var input = document.getElementById('headerSearchInput');
+  if (input) input.value = q;
+  doSearch(q, document.getElementById('headerSearchResults'));
+}
+
+function cardHoverBarHTML(id, type, title) {
+  var faved = isFaved(id, type);
+  return '<div class="card-hover-bar" onclick="event.stopPropagation()">'
+    + '<button class="chb-play" type="button" onclick="quickPlay('+id+',\''+type+'\',\''+esc(title)+'\')"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Play</button>'
+    + '<button class="chb-icon'+(faved?' faved':'')+'" type="button" onclick="var b=this;b.classList.toggle(\'faved\',toggleFav('+id+',\''+type+'\',\''+esc(title)+'\'))" title="My List">'
+    + '<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>'
+    + '<button class="chb-icon" type="button" onclick="hideTitle('+id+',\''+type+'\',\''+esc(title)+'\')" title="Hide">'
+    + '<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>'
+    + '</div>';
+}
+
 // Hidden genres (default: 27 = Horror). User-controllable, persisted.
 var GENRE_OPTIONS = [
   {id:27,name:'Horror'},{id:28,name:'Action'},{id:35,name:'Comedy'},{id:18,name:'Drama'},
@@ -2260,7 +2359,8 @@ function doSearch(query, resultsEl) {
     resultsEl.classList.add('on');
     return;
   }
-  if (query.length < 2) { resultsEl.classList.remove('on'); return; }
+  if (query.length < 2) { showRecentSearches(resultsEl); return; }
+  pushRecentSearch(query);
   tmdbFetch('/search/multi?query=' + encodeURIComponent(query) + '&include_adult=false').then(function(data) {
     if (!data || !data.results) return;
     var items = dropHidden(data.results.filter(function(r){ return r.media_type === 'movie' || r.media_type === 'tv'; })).slice(0, 8);
@@ -2299,7 +2399,9 @@ function playFromSearch(id, type, title) {
   });
   input.addEventListener('focus', function() {
     if (typeof setMobTab === 'function') setMobTab('search');
-    if (input.value.trim().length >= 2) doSearch(input.value.trim(), results);
+    var q = input.value.trim();
+    if (q.length >= 2) doSearch(q, results);
+    else showRecentSearches(results);
   });
 })();
 document.addEventListener('click', function(e) {
@@ -3179,9 +3281,11 @@ function showSpot(i) {
     bg.classList.add('on');
   };
 
+  var match = matchScore(s.vote_average);
   document.getElementById('spotlightContent').innerHTML =
     '<div class="spotlight-badges">'
     + '<span class="sp-badge">'+type.toUpperCase()+'</span>'
+    + (match ? '<span class="sp-match">'+match+'</span>' : '')
     + (rating ? '<span class="sp-rating">★ '+rating+'</span>' : '')
     + (year ? '<span class="sp-meta-txt">'+year+'</span>' : '')
     + '<span class="sp-meta-txt">&#128293; Trending</span>'
@@ -3232,14 +3336,15 @@ function posterCardHTML(item, i, opts) {
     + '</div>';
   var infoBlock = '<div class="trending-info"><div class="trending-title">'+title+'</div>'
     + '<div class="trending-meta">'+year+(rating?' · '+rating:'')+'</div></div>';
+  var hoverBar = cardHoverBarHTML(item.id, type, title);
   if (opts.numbered) {
     return '<div class="trending-card top10-card" onclick="openDetail('+item.id+',\''+type+'\',\''+esc(title)+'\')">'
       + '<div class="top10-num">'+(i+1)+'</div>'
-      + '<div class="top10-poster-wrap">'+posterBlock+infoBlock+'</div>'
+      + '<div class="top10-poster-wrap">'+posterBlock+infoBlock+hoverBar+'</div>'
       + '</div>';
   }
   return '<div class="trending-card" onclick="openDetail('+item.id+',\''+type+'\',\''+esc(title)+'\')">'
-    + posterBlock + infoBlock + '</div>';
+    + posterBlock + infoBlock + hoverBar + '</div>';
 }
 
 function renderPosterRow(items, containerId, opts) {
@@ -3248,8 +3353,11 @@ function renderPosterRow(items, containerId, opts) {
   var row = document.getElementById(containerId);
   if (!row) return;
   row.classList.toggle('top10-row', !!opts.numbered);
-  if (!items || items.length === 0) { rowNotice(containerId, 'Nothing matched', 'Try another sort or loosen hidden genres.'); return; }
+  if (!items || items.length === 0) { row.classList.remove('row-anim'); rowNotice(containerId, 'Nothing matched', 'Try another sort or loosen hidden genres.'); return; }
   row.innerHTML = items.map(function(item, i) { return posterCardHTML(item, i, opts); }).join('');
+  row.classList.remove('row-anim');
+  void row.offsetWidth;
+  row.classList.add('row-anim');
 }
 
 function renderMindBending() {
@@ -3589,6 +3697,7 @@ function openDetail(id, type, title) {
     + '<div class="skel skel-line" style="width:90%;height:14px;margin-top:8px"></div></div>';
   document.getElementById('detailBackdrop').classList.add('on');
   document.body.style.overflow = 'hidden';
+  setDetailHash(id, type);
 
   var append = '?append_to_response=credits,videos,recommendations';
   tmdbFetch('/' + type + '/' + id + append).then(function(d) {
@@ -3602,6 +3711,14 @@ function openDetail(id, type, title) {
     var castArr = d.credits && d.credits.cast ? d.credits.cast.slice(0, 12) : [];
     var backdrop = d.backdrop_path ? TMDB_IMG+'w1280'+d.backdrop_path : (d.poster_path ? TMDB_IMG+'w780'+d.poster_path : '');
     var faved = isFaved(id, type);
+    var hist = getHistory().find(function(x){ return x.key === type + '_' + id; });
+    var match = matchScore(d.vote_average);
+    var playLabel = hist && hist.pct > 2
+      ? (type === 'tv' ? 'Resume S' + hist.s + ' E' + hist.e : 'Resume')
+      : (type === 'tv' ? 'Play S1 E1' : 'Play');
+    var playAction = hist && hist.pct > 2
+      ? 'loadPlayer('+id+',\''+type+'\','+hist.s+','+hist.e+','+hist.ts+',\''+esc(t)+'\');closeDetail()'
+      : 'quickPlay('+id+',\''+type+'\',\''+esc(t)+'\');closeDetail()';
     // trailer (YouTube)
     var trailerKey = '';
     if (d.videos && d.videos.results) {
@@ -3627,14 +3744,15 @@ function openDetail(id, type, title) {
       + '<div class="detail-title">'+t+'</div>'
       + '<div class="detail-meta">'
       + '<span class="sp-badge">'+type.toUpperCase()+'</span>'
-      + (rating ? '<span style="color:var(--accent);font-weight:700">★ '+rating+'</span>' : '')
+      + (match ? '<span class="sp-match">'+match+'</span>' : '')
+      + (rating ? '<span class="sp-rating">★ '+rating+'</span>' : '')
       + (year ? '<span>'+year+'</span>' : '')
       + (runtime ? '<span>'+runtime+'</span>' : '')
       + (type==='tv' && d.number_of_seasons ? '<span>'+d.number_of_seasons+' season'+(d.number_of_seasons>1?'s':'')+'</span>' : '')
       + '</div></div></div>'
       + '<div class="detail-body">'
       + '<div class="detail-actions">'
-      + '<button class="sp-btn play" onclick="quickPlay('+id+',\''+type+'\',\''+esc(t)+'\');closeDetail()"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Play'+(type==='tv'?' S1 E1':'')+'</button>'
+      + '<button class="sp-btn play" onclick="'+playAction+'"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'+playLabel+'</button>'
       + (trailerKey ? '<button class="sp-btn info" onclick="openTrailer(\''+trailerKey+'\')"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Trailer</button>' : '')
       + '<button class="sp-btn info" id="detailFav" onclick="toggleFav('+id+',\''+type+'\',\''+esc(t)+'\')">'
       + '<svg viewBox="0 0 24 24" style="fill:'+(faved?'currentColor':'none')+';stroke:currentColor;stroke-width:2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>'
@@ -3799,6 +3917,7 @@ function quickPlayTV(id, s, e, title) {
 function closeDetail() {
   document.getElementById('detailBackdrop').classList.remove('on');
   document.body.style.overflow = '';
+  clearDetailHash();
 }
 document.getElementById('detailBackdrop').addEventListener('click', function(e) {
   if (e.target === this) closeDetail();
@@ -3846,6 +3965,18 @@ function lazyLoad(anchorId, fn) {
     spotlight.addEventListener('mouseleave', function(){ if (spotlightSlides.length) startSpotTimer(); });
     spotlight.addEventListener('focusin', function(){ clearInterval(spotTimer); });
     spotlight.addEventListener('focusout', function(){ if (spotlightSlides.length) startSpotTimer(); });
+    var touchStartX = 0;
+    spotlight.addEventListener('touchstart', function(e) {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+    spotlight.addEventListener('touchend', function(e) {
+      if (!spotlightSlides.length) return;
+      var dx = e.changedTouches[0].screenX - touchStartX;
+      if (Math.abs(dx) < 48) return;
+      var len = spotlightSlides.length;
+      if (dx < 0) gotoSpot((spotIndex + 1) % len);
+      else gotoSpot((spotIndex - 1 + len) % len);
+    }, { passive: true });
   }
 })();
 
@@ -3889,6 +4020,11 @@ lazyLoad('animeRow',      fetchAnime);
 lazyLoad('kdramaRow',     fetchKDrama);
 lazyLoad('movieGrid',     function(){ renderPicks(MOVIES, 'movie', 'movieGrid'); });
 lazyLoad('tvGrid',        function(){ renderPicks(TV, 'tv', 'tvGrid'); });
+
+(function handleDeepLink() {
+  var m = location.hash.match(/^#(movie|tv)\/(\d+)/);
+  if (m) setTimeout(function(){ openDetail(parseInt(m[2], 10), m[1], ''); }, 500);
+})();
 
 // PWA service worker
 if ('serviceWorker' in navigator) {
