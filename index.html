@@ -2351,6 +2351,7 @@
         <option value="cinezo">Cinezo</option>
         <option value="2embed">2Embed</option>
       </select>
+      <div class="modal-hint">Max resolution is chosen inside the player: open Settings and pick 1080p (or highest listed). Use the server icon to try another source; 2Embed indexes full-HD when available.</div>
     </div>
     <div class="modal-field">
       <label>Hide Genres</label>
@@ -2859,6 +2860,7 @@ function buildUrl(id, type, s, e, progress, forceAutoplay) {
     cz.set('chromecast', 'true');
     cz.set('servericon', 'true');
     cz.set('setting', 'true');
+    cz.set('download', 'true');
     cz.set('pip', 'true');
     cz.set('font', 'Noto Sans Arabic');
     cz.set('fontcolor', 'ffffff');
@@ -2916,7 +2918,17 @@ function tryNextSource() {
   var idx = PLAYER_SOURCES.indexOf(current);
   var next = PLAYER_SOURCES[(idx + 1) % PLAYER_SOURCES.length] || 'cinezo';
   setPlayerSource(next, true);
-  showToast(next === '2embed' ? 'Backup player — may show ads' : 'Switched to ' + getPlayerSourceLabel(next));
+  showToast(next === '2embed' ? 'Backup player — may show ads; often full-HD' : 'Switched to ' + getPlayerSourceLabel(next));
+}
+
+function maybeShowQualityTip() {
+  try {
+    if (localStorage.getItem('streamr_quality_tip_seen')) return;
+    localStorage.setItem('streamr_quality_tip_seen', '1');
+    setTimeout(function() {
+      showToast('Tip: player Settings → pick highest quality; tap server icon to switch source');
+    }, 2800);
+  } catch(e) {}
 }
 
 function getPlayerIframe() {
@@ -3317,6 +3329,7 @@ function loadPlayer(id, type, s, e, progress, title) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
   saveHistory(id, type, s, e, title || (type + ' #' + id), progress || 0, 0, 0);
   loadExternalFarsiSubtitles(id, type, s, e);
+  maybeShowQualityTip();
   bumpPlayerIdle();
   var wrap = document.getElementById('playerWrap');
   if (wrap && !wrap._idleBound) {
