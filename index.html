@@ -2373,7 +2373,7 @@
       <select class="pref-select" id="settingsPlayerSource" style="width:100%;max-width:none">
         <option value="cinezo">Cinezo (recommended)</option>
       </select>
-      <div class="modal-hint">Cinezo may show short ad breaks — that is normal for free streams. Tap ↻ below the player or the server icon inside Cinezo to try another source. Enable Brave Shields for this site to reduce popups.</div>
+      <div class="modal-hint">Free streams include short in-player ad breaks (normal). On mobile, use <strong>Brave browser</strong> with Shields ON — the installed home-screen app cannot block embed popups. Tap ↻ or the server icon inside the player to try another source.</div>
     </div>
     <div class="modal-field">
       <label>Hide Genres</label>
@@ -2892,23 +2892,34 @@ function getPlayerSourceLabel(source) {
   return 'Cinezo';
 }
 
+function isMobileDevice() {
+  return window.matchMedia('(max-width: 640px)').matches
+    || (navigator.maxTouchPoints > 0 && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || ''));
+}
+
+function isStandaloneApp() {
+  return window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+}
+
 function buildUrl(id, type, s, e, progress, forceAutoplay) {
   var sourceEl = document.getElementById('playerSource');
   var source = normalizePlayerSource(sourceEl ? sourceEl.value : currentPlayerSource);
   currentPlayerSource = source;
   if (sourceEl && sourceEl.value !== source) sourceEl.value = source;
-  var autoOn = forceAutoplay || document.getElementById('autoPlay').checked;
+  var mobile = isMobileDevice();
+  var autoOn = !mobile && (forceAutoplay || document.getElementById('autoPlay').checked);
 
   if (source === 'cinezo') {
     var czBase = type === 'movie' ? 'https://player.cinezo.live/embed/movie/' + id : 'https://player.cinezo.live/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
     var cz = new URLSearchParams();
     cz.set('autoplay', autoOn ? 'true' : 'false');
     cz.set('poster', 'true');
-    cz.set('chromecast', 'true');
+    cz.set('chromecast', mobile ? 'false' : 'true');
     cz.set('servericon', 'true');
     cz.set('setting', 'true');
     cz.set('autonext', 'false');
-    cz.set('pip', 'true');
+    cz.set('pip', mobile ? 'false' : 'true');
     var czServer = getCinezoServer();
     if (czServer) cz.set('server', czServer);
     cz.set('font', 'Noto Sans Arabic');
@@ -2993,6 +3004,21 @@ function maybeShowQualityTip() {
     setTimeout(function() {
       showToast('Tip: player Settings → pick highest quality; tap server icon to switch source');
     }, 2800);
+  } catch(e) {}
+}
+
+function maybeShowMobileAdTip() {
+  if (!isMobileDevice()) return;
+  try {
+    if (localStorage.getItem('streamr_mobile_ad_tip_seen')) return;
+    localStorage.setItem('streamr_mobile_ad_tip_seen', '1');
+    setTimeout(function() {
+      if (isStandaloneApp()) {
+        showToast('Fewer popups: open streamr in Brave browser (not the home-screen app) with Shields ON');
+      } else {
+        showToast('Fewer popups: Brave Shields ON for this site · ↻ tries another stream server');
+      }
+    }, 3200);
   } catch(e) {}
 }
 
@@ -3201,12 +3227,8 @@ function showPlayerTvPicker(id, title, s, e) {
 }
 
 function playPlayerEpisode(id, s, e, title) {
-  var hist = getHistory().find(function(x) { return x.key === 'tv_' + id; });
-  var progress = 0;
-  if (hist && parseInt(hist.s, 10) === parseInt(s, 10) && parseInt(hist.e, 10) === parseInt(e, 10) && (hist.pct > 2 || hist.ts > 0)) {
-    progress = hist.ts || 0;
-  }
-  loadPlayer(id, 'tv', s, e, progress, title);
+  var hist = getHistoryEntry(id, 'tv');
+  loadPlayer(id, 'tv', s, e, getResumeProgress(hist, 'tv', s, e), title);
 }
 
 function clearPlayerLoadWatch() {
@@ -3437,6 +3459,10 @@ function loadPlayer(id, type, s, e, progress, title) {
   iframe.setAttribute('frameborder', '0');
   iframe.setAttribute('allowfullscreen', 'true');
   iframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media');
+  iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+  if (isMobileDevice()) {
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-fullscreen');
+  }
   iframe.setAttribute('loading', 'eager');
   iframe.addEventListener('load', function() {
     schedulePlayerUnmute();
@@ -3491,6 +3517,7 @@ function loadPlayer(id, type, s, e, progress, title) {
   }
   loadExternalFarsiSubtitles(id, type, s, e);
   maybeShowQualityTip();
+  maybeShowMobileAdTip();
   bumpPlayerIdle();
   var wrap = document.getElementById('playerWrap');
   if (wrap && !wrap._idleBound) {
