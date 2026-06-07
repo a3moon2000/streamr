@@ -1949,7 +1949,7 @@
       <button class="dock-btn" type="button" onclick="togglePlayerPiP()" title="Picture in Picture" aria-label="Picture in picture">
         <svg viewBox="0 0 24 24"><path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>
       </button>
-      <button class="dock-btn" type="button" onclick="cycleCinezoServer()" title="Try another Cinezo stream server" aria-label="Switch Cinezo server">
+      <button class="dock-btn" type="button" onclick="cyclePlayerSource()" title="Switch player source (Cinezo / backup)" aria-label="Switch player source">
         <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
       </button>
     </div>
@@ -1988,8 +1988,9 @@
       <div class="settings">
         <div class="pref-group">
           <span class="pref-label">Source</span>
-          <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value)">
+          <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value, true)">
             <option value="cinezo" selected>Cinezo</option>
+            <option value="2embed">2Embed (backup)</option>
           </select>
         </div>
         <div class="pref-group">
@@ -2372,6 +2373,7 @@
       <label>Default Player</label>
       <select class="pref-select" id="settingsPlayerSource" style="width:100%;max-width:none">
         <option value="cinezo">Cinezo (recommended)</option>
+        <option value="2embed">2Embed (backup)</option>
       </select>
       <div class="modal-hint">Free streams include short in-player ad breaks (normal). On mobile, use <strong>Brave browser</strong> with Shields ON — the installed home-screen app cannot block embed popups. Tap ↻ or the server icon inside the player to try another source.</div>
     </div>
@@ -2397,8 +2399,8 @@
 var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'cinezo', currentSubtitleLang = 'fa', searchTimeout = null, searchFocusIdx = -1;
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
-var PLAYER_SOURCES = ['cinezo'];
-var CINEZO_SERVER_CYCLE = ['', '1', '2', '3', '4', '5'];
+var PLAYER_SOURCES = ['cinezo', '2embed'];
+var CINEZO_SERVER_CYCLE = [''];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
 var playerLoadTimer = null, playerGotProgress = false, playerReadyMarked = false, playerSourceFailCount = 0, playerAutoFallback = false, playerUnmuteAttempts = 0;
@@ -2945,6 +2947,12 @@ function buildUrl(id, type, s, e, progress, forceAutoplay) {
   return 'https://www.2embed.cc/embed/' + id;
 }
 
+function revealPlayerEmbed() {
+  if (playerReadyMarked) return;
+  dismissPlayerLoading(true);
+  setDockStatus('Tap play in the player', true);
+}
+
 function markPlayerReady(statusText) {
   if (playerReadyMarked) return;
   playerReadyMarked = true;
@@ -2956,11 +2964,20 @@ function markPlayerReady(statusText) {
 }
 
 function setPlayerSource(source, manual) {
-  currentPlayerSource = 'cinezo';
-  try {
-    localStorage.setItem('streamr_player_source', 'cinezo');
-    localStorage.removeItem('streamr_manual_2embed');
-  } catch(e) {}
+  source = normalizePlayerSource(source || 'cinezo');
+  if (manual && source === '2embed') {
+    currentPlayerSource = '2embed';
+    try {
+      localStorage.setItem('streamr_player_source', '2embed');
+      localStorage.setItem('streamr_manual_2embed', '1');
+    } catch(e) {}
+  } else {
+    currentPlayerSource = 'cinezo';
+    try {
+      localStorage.setItem('streamr_player_source', 'cinezo');
+      localStorage.removeItem('streamr_manual_2embed');
+    } catch(e) {}
+  }
   var sourceEl = document.getElementById('playerSource');
   if (sourceEl && sourceEl.value !== currentPlayerSource) sourceEl.value = currentPlayerSource;
   var settingsSrc = document.getElementById('settingsPlayerSource');
@@ -2982,18 +2999,19 @@ function getCinezoServer() {
   try { return localStorage.getItem('streamr_cinezo_server') || ''; } catch (e) { return ''; }
 }
 
-function cycleCinezoServer() {
-  if (currentPlayerSource !== 'cinezo') setPlayerSource('cinezo');
-  var cur = getCinezoServer();
-  var idx = CINEZO_SERVER_CYCLE.indexOf(cur);
-  if (idx < 0) idx = 0;
-  var next = CINEZO_SERVER_CYCLE[(idx + 1) % CINEZO_SERVER_CYCLE.length];
-  try { localStorage.setItem('streamr_cinezo_server', next); } catch (e) {}
+function cyclePlayerSource() {
   if (!lastPlayerRequest) {
-    showToast(next ? 'Cinezo server ' + next : 'Cinezo auto server');
+    showToast(currentPlayerSource === 'cinezo' ? 'Backup: 2Embed' : 'Primary: Cinezo');
     return;
   }
-  showToast(next ? 'Trying Cinezo server ' + next + '…' : 'Trying Cinezo auto server…');
+  if (currentPlayerSource === 'cinezo') {
+    setPlayerSource('2embed', true);
+    showToast('Trying backup player (2Embed)…');
+  } else {
+    try { localStorage.removeItem('streamr_cinezo_server'); } catch (e) {}
+    setPlayerSource('cinezo');
+    showToast('Back to Cinezo…');
+  }
   loadPlayer(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e, lastPlayerRequest.progress, lastPlayerRequest.title);
 }
 
@@ -3275,16 +3293,24 @@ function armPlayerLoadWatch() {
   clearPlayerLoadWatch();
   playerLoadTimer = setTimeout(function() {
     if (playerGotProgress) return;
+    if (currentPlayerSource === 'cinezo' && lastPlayerRequest && playerSourceFailCount < 1) {
+      playerSourceFailCount++;
+      setPlayerSource('2embed', true);
+      showToast('Cinezo slow — trying backup player…');
+      loadPlayer(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e, lastPlayerRequest.progress, lastPlayerRequest.title);
+      return;
+    }
+    revealPlayerEmbed();
     var el = document.getElementById('playerLoading');
     if (el) {
       el.classList.add('error');
       var msg = el.querySelector('span');
-      if (msg) msg.textContent = 'Stream slow — tap Retry or try another server (↻)';
+      if (msg) msg.textContent = 'Stream slow — tap Retry or switch source (↻)';
       var retry = el.querySelector('.player-loading-retry');
       if (retry) retry.style.display = '';
     }
-    setDockStatus('Buffering…', true);
-  }, 13000);
+    setDockStatus('Having trouble — tap Retry or ↻', true);
+  }, 18000);
 }
 
 function bumpPlayerIdle() {
@@ -3444,8 +3470,9 @@ function loadPlayer(id, type, s, e, progress, title) {
   if (!id) return;
   try { sessionStorage.setItem('streamr_scroll_y', String(window.scrollY)); } catch(e) {}
   lastPlayerRequest = { id: id, type: type, s: s, e: e, progress: progress || 0, title: title || '' };
+  playerSourceFailCount = 0;
+  try { localStorage.removeItem('streamr_cinezo_server'); } catch (e) {}
 
-  // Cinezo autoplay always starts muted; manual play in the embed starts with sound.
   var url = buildUrl(id, type, s, e, progress, false);
   var inner = document.getElementById('playerInner');
   inner.innerHTML = '';
@@ -3462,7 +3489,7 @@ function loadPlayer(id, type, s, e, progress, title) {
   iframe.setAttribute('loading', 'eager');
   iframe.addEventListener('load', function() {
     schedulePlayerUnmute();
-    setDockStatus('Connecting…', true);
+    setTimeout(revealPlayerEmbed, 700);
   });
   inner.appendChild(iframe);
   unmutePlayerIframe();
@@ -4302,9 +4329,11 @@ function savePlayerPrefs() {
 
 function initPlayerPrefs() {
   try {
-    localStorage.setItem('streamr_player_source', 'cinezo');
-    localStorage.removeItem('streamr_manual_2embed');
-    setPlayerSource('cinezo');
+    localStorage.removeItem('streamr_cinezo_server');
+    var src = localStorage.getItem('streamr_player_source');
+    var manual2 = localStorage.getItem('streamr_manual_2embed');
+    if (src === '2embed' && manual2 === '1') setPlayerSource('2embed', true);
+    else setPlayerSource('cinezo');
     var ap = localStorage.getItem('streamr_autoplay');
     if (ap !== null) document.getElementById('autoPlay').checked = ap === '1';
     var ep = localStorage.getItem('streamr_epsel');
