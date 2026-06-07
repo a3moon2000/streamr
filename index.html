@@ -2378,7 +2378,8 @@ var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = n
 var PLAYER_SOURCES = ['cinezo', '2embed'];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
-var playerLoadTimer = null, playerGotProgress = false, playerReadyMarked = false, playerSourceFailCount = 0, playerAutoFallback = false;
+var playerLoadTimer = null, playerGotProgress = false, playerReadyMarked = false, playerSourceFailCount = 0, playerAutoFallback = false, playerUnmuteAttempts = 0;
+var CINEZO_ORIGIN = 'https://player.cinezo.live';
 var playerIdleTimer = null, subtitlesVisible = true, subtitleSizeIdx = 1;
 var tvHubPage = 1, tvHubShowId = null, tvHubShowTitle = '', tvHubGenre = 0;
 var playerTvMeta = { id: null, title: '', seasons: null };
@@ -2869,13 +2870,17 @@ function buildUrl(id, type, s, e, progress, forceAutoplay) {
     cz.set('primarycolor', currentColor);
     cz.set('secondarycolor', '111827');
     cz.set('iconcolor', 'ffffff');
+    cz.set('mute', 'false');
+    cz.set('muted', 'false');
+    cz.set('volume', '1');
     if (progress && progress > 10) cz.set('startAt', Math.floor(progress));
     return czBase + '?' + cz.toString();
   }
 
   if (source === '2embed') {
-    if (type === 'movie') return 'https://www.2embed.cc/embed/' + id;
-    return 'https://www.2embed.cc/embedtv/' + id + '&s=' + (s || 1) + '&e=' + (e || 1);
+    var unmuteQs = 'mute=false&muted=false&volume=1';
+    if (type === 'movie') return 'https://www.2embed.cc/embed/' + id + '?' + unmuteQs;
+    return 'https://www.2embed.cc/embedtv/' + id + '&s=' + (s || 1) + '&e=' + (e || 1) + '&' + unmuteQs;
   }
 
   return 'https://www.2embed.cc/embed/' + id;
@@ -2888,6 +2893,7 @@ function markPlayerReady(statusText) {
   clearPlayerLoadWatch();
   dismissPlayerLoading(true);
   setDockStatus(statusText || 'Playing', false);
+  unmutePlayerIframe();
 }
 
 function setPlayerSource(source, manual) {
@@ -2934,6 +2940,48 @@ function maybeShowQualityTip() {
 function getPlayerIframe() {
   var inner = document.getElementById('playerInner');
   return inner ? inner.querySelector('iframe') : null;
+}
+
+function postToPlayerFrame(payload, origin) {
+  var iframe = getPlayerIframe();
+  if (!iframe || !iframe.contentWindow) return;
+  try {
+    var msg = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    iframe.contentWindow.postMessage(msg, origin || '*');
+  } catch (e) {}
+}
+
+function ensurePlayerUnmuted() {
+  if (playerUnmuteAttempts > 14) return;
+  playerUnmuteAttempts++;
+  var iframe = getPlayerIframe();
+  if (!iframe || !iframe.contentWindow) return;
+  var src = iframe.src || '';
+  var isCinezo = src.indexOf('player.cinezo.live') !== -1;
+  var origins = isCinezo ? [CINEZO_ORIGIN, '*'] : ['*'];
+  var cmds = [
+    { type: 'PLAYER_COMMAND', data: { method: 'unmute' } },
+    { type: 'PLAYER_COMMAND', data: { method: 'setVolume', value: 1 } },
+    { type: 'PLAYER_COMMAND', method: 'unmute' },
+    { type: 'PLAYER_COMMAND', method: 'setVolume', value: 1 },
+    { api: 'unmute' },
+    { method: 'unmute' },
+    { action: 'unmute' },
+    { type: 'unmute' },
+    { type: 'volumechange', payload: 100 },
+    { event: 'command', func: 'unmute', args: '' }
+  ];
+  origins.forEach(function(origin) {
+    cmds.forEach(function(cmd) { postToPlayerFrame(cmd, origin); });
+  });
+}
+
+function schedulePlayerUnmute() {
+  playerUnmuteAttempts = 0;
+  ensurePlayerUnmuted();
+  [50, 150, 400, 900, 1800, 3500].forEach(function(ms) {
+    setTimeout(ensurePlayerUnmuted, ms);
+  });
 }
 
 function formatPlayerTitle(title, type, s, e) {
@@ -3267,7 +3315,8 @@ function loadPlayer(id, type, s, e, progress, title) {
   try { sessionStorage.setItem('streamr_scroll_y', String(window.scrollY)); } catch(e) {}
   lastPlayerRequest = { id: id, type: type, s: s, e: e, progress: progress || 0, title: title || '' };
 
-  var url = buildUrl(id, type, s, e, progress, true);
+  // Cinezo autoplay always starts muted; manual play in the embed starts with sound.
+  var url = buildUrl(id, type, s, e, progress, false);
   var inner = document.getElementById('playerInner');
   inner.innerHTML = '';
   showPlayerLoading();
@@ -3282,6 +3331,7 @@ function loadPlayer(id, type, s, e, progress, title) {
   iframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media');
   iframe.setAttribute('loading', 'eager');
   iframe.addEventListener('load', function() {
+    schedulePlayerUnmute();
     setTimeout(function() { markPlayerReady('Playing'); }, 900);
   });
   inner.appendChild(iframe);
@@ -3698,7 +3748,10 @@ window.addEventListener('message', function(ev) {
     var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
     if (!data || typeof data !== 'object') return;
     var msgType = data.type || data.event || '';
-    if (msgType === 'play' || msgType === 'ready' || msgType === 'playing') markPlayerReady('Playing');
+    if (msgType === 'play' || msgType === 'ready' || msgType === 'playing') {
+      markPlayerReady('Playing');
+      ensurePlayerUnmuted();
+    }
     if (data.type !== 'PLAYER_EVENT') return;
     var d = data.data;
     var strip = document.getElementById('progStrip');
@@ -3713,6 +3766,9 @@ window.addEventListener('message', function(ev) {
       if (!playerGotProgress) {
         playerSourceFailCount = 0;
         markPlayerReady('Playing');
+        ensurePlayerUnmuted();
+      } else if (status === 'playing') {
+        ensurePlayerUnmuted();
       }
       strip.classList.add('on');
       evt.textContent = '▶';
