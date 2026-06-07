@@ -1187,6 +1187,26 @@
     .ep-btn.current .ep-pct {
       position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent);
     }
+
+    /* TV season/episode picker below player */
+    .player-tv-pick {
+      display: none;
+      padding: 18px var(--row-pad) 22px;
+      background: #141414;
+      border-bottom: 1px solid var(--border);
+    }
+    body.player-mode .player-tv-pick.on { display: block; }
+    .player-tv-pick-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    .player-tv-pick-title {
+      font-family: var(--display); font-size: clamp(18px, 3vw, 22px);
+      font-weight: 400; letter-spacing: 0.03em; margin-bottom: 14px; color: #e5e5e5;
+    }
+    .player-tv-pick .season-pills { margin-bottom: 12px; }
+    .player-tv-pick .ep-grid { max-width: 720px; }
+
     .cw-title { cursor: pointer; }
     .cw-title:hover { color: #fff; }
     @media (min-width: 641px) {
@@ -1633,6 +1653,8 @@
       .ptb-provider { display: none; }
       .ptb-source { width: 84px; padding: 0 8px; font-size: 11px; }
       body.player-mode .ctrl-bar { display: none !important; }
+      .player-tv-pick { padding: 14px 16px 18px; }
+      .player-tv-pick .ep-grid { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
       body.player-mode .player-inner { min-height: 320px; }
       body.player-mode .player-dock .dock-row { padding: 8px 14px; }
       body.player-mode .player-dock .dock-btn { width: 40px; height: 40px; }
@@ -1971,6 +1993,12 @@
         <label class="tog-label" id="epSelLabel" style="display:none">Episodes <span class="sw"><input type="checkbox" id="epSel" checked><span class="sw-track"></span></span></label>
       </div>
     </div>
+  </div>
+  <div class="player-tv-pick" id="playerTvPick" aria-label="Season and episode picker">
+    <div class="player-tv-pick-label">Seasons &amp; Episodes</div>
+    <div class="player-tv-pick-title" id="playerTvPickTitle"></div>
+    <div class="season-pills" id="playerTvSeasonPills"></div>
+    <div class="ep-grid" id="playerEpGrid"></div>
   </div>
 </div>
 
@@ -2352,6 +2380,7 @@ var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = fa
 var playerLoadTimer = null, playerGotProgress = false, playerReadyMarked = false, playerSourceFailCount = 0, playerAutoFallback = false;
 var playerIdleTimer = null, subtitlesVisible = true, subtitleSizeIdx = 1;
 var tvHubPage = 1, tvHubShowId = null, tvHubShowTitle = '', tvHubGenre = 0;
+var playerTvMeta = { id: null, title: '', seasons: null };
 var prefetchDetailCache = {};
 
 var GRAD = [
@@ -2911,10 +2940,106 @@ function updatePlayerChrome(type, s, e, title) {
   } else {
     if (epEl) epEl.textContent = '';
     if (transport) transport.classList.remove('on');
+    hidePlayerTvPicker();
   }
   document.getElementById('ptbTitle').textContent = formatPlayerTitle(title, type, s, e);
   document.getElementById('playerDock').classList.add('on');
   refreshSubtitleButtons();
+}
+
+function hidePlayerTvPicker() {
+  var panel = document.getElementById('playerTvPick');
+  if (panel) panel.classList.remove('on');
+  playerTvMeta = { id: null, title: '', seasons: null };
+}
+
+function renderEpisodeButtons(showId, season, episodes, title, clickFn) {
+  var hist = getHistory().find(function(x) { return x.key === 'tv_' + showId; });
+  var hs = hist ? parseInt(hist.s, 10) : 0;
+  var he = hist ? parseInt(hist.e, 10) : 0;
+  var hp = hist ? (hist.pct || 0) : 0;
+  var sn = parseInt(season, 10);
+  return episodes.map(function(ep) {
+    var done = hs === sn && ep.episode_number < he;
+    var current = hs === sn && ep.episode_number === he;
+    var completed = current && hp >= 90;
+    var watched = done || completed;
+    var cls = 'ep-btn' + (watched ? ' watched' : '') + (completed ? ' done' : '') + (current && !completed ? ' current' : '');
+    var tip = (ep.name || ('Episode ' + ep.episode_number)) + (current && hp > 2 ? ' · ' + Math.round(hp) + '%' : '');
+    var pctBar = current && hp > 2 && hp < 90 ? '<span class="ep-pct" style="width:' + Math.min(100, hp) + '%"></span>' : '';
+    return '<button class="' + cls + '" title="' + esc(tip) + '" onclick="' + clickFn(showId, season, ep.episode_number, title) + '">' + ep.episode_number + pctBar + '</button>';
+  }).join('');
+}
+
+function renderPlayerSeasonPills(showId, title, activeSeason) {
+  var seasons = playerTvMeta.seasons || [];
+  var active = parseInt(activeSeason, 10);
+  document.getElementById('playerTvSeasonPills').innerHTML = seasons.map(function(s) {
+    return '<button type="button" class="season-pill' + (s.season_number === active ? ' active' : '') + '" onclick="selectPlayerSeason(' + showId + ',\'' + esc(title) + '\',' + s.season_number + ')">S' + s.season_number + '</button>';
+  }).join('');
+}
+
+function loadPlayerEpisodes(showId, title, season) {
+  var grid = document.getElementById('playerEpGrid');
+  if (!grid) return;
+  grid.innerHTML = '<div style="color:var(--muted);font-size:12px">Loading episodes…</div>';
+  tmdbFetch('/tv/' + showId + '/season/' + season).then(function(d) {
+    if (!d || !d.episodes) { grid.innerHTML = ''; return; }
+    grid.innerHTML = renderEpisodeButtons(showId, season, d.episodes, title, function(id, s, ep, t) {
+      return 'playPlayerEpisode(' + id + ',' + s + ',' + ep + ',\'' + esc(t) + '\')';
+    });
+    var curBtn = grid.querySelector('.ep-btn.current');
+    if (curBtn) curBtn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  });
+}
+
+function selectPlayerSeason(showId, title, season) {
+  document.getElementById('season').value = season;
+  renderPlayerSeasonPills(showId, title, season);
+  loadPlayerEpisodes(showId, title, season);
+}
+
+function showPlayerTvPicker(id, title, s, e) {
+  var panel = document.getElementById('playerTvPick');
+  if (!panel) return;
+  panel.classList.add('on');
+  document.getElementById('playerTvPickTitle').textContent = title || 'TV Show';
+  if (playerTvMeta.id === String(id) && playerTvMeta.seasons) {
+    renderPlayerSeasonPills(id, playerTvMeta.title || title, s);
+    loadPlayerEpisodes(id, playerTvMeta.title || title, s);
+    return;
+  }
+  playerTvMeta.id = String(id);
+  playerTvMeta.title = title || '';
+  playerTvMeta.seasons = null;
+  document.getElementById('playerTvSeasonPills').innerHTML = '<span style="color:var(--muted);font-size:12px">Loading seasons…</span>';
+  document.getElementById('playerEpGrid').innerHTML = '';
+  tmdbFetch('/tv/' + id).then(function(d) {
+    if (!d || playerTvMeta.id !== String(id)) return;
+    playerTvMeta.title = d.name || title || 'TV Show';
+    document.getElementById('playerTvPickTitle').textContent = playerTvMeta.title;
+    var seasons = (d.seasons || []).filter(function(sn) { return sn.season_number > 0; });
+    if (!seasons.length) seasons = d.seasons || [];
+    playerTvMeta.seasons = seasons;
+    renderPlayerSeasonPills(id, playerTvMeta.title, s);
+    loadPlayerEpisodes(id, playerTvMeta.title, s);
+  });
+}
+
+function playPlayerEpisode(id, s, e, title) {
+  var hist = getHistory().find(function(x) { return x.key === 'tv_' + id; });
+  var progress = 0;
+  if (hist && parseInt(hist.s, 10) === parseInt(s, 10) && parseInt(hist.e, 10) === parseInt(e, 10) && (hist.pct > 2 || hist.ts > 0)) {
+    progress = hist.ts || 0;
+  }
+  loadPlayer(id, 'tv', s, e, progress, title);
+}
+
+function refreshPlayerEpGridIfOpen() {
+  if (!document.getElementById('playerTvPick') || !document.getElementById('playerTvPick').classList.contains('on')) return;
+  if (!playerTvMeta.id || !lastPlayerRequest || lastPlayerRequest.type !== 'tv') return;
+  var s = document.getElementById('season').value;
+  loadPlayerEpisodes(playerTvMeta.id, playerTvMeta.title, s);
 }
 
 function clearPlayerLoadWatch() {
@@ -3184,6 +3309,9 @@ function loadPlayer(id, type, s, e, progress, title) {
   if (type === 'tv') {
     document.getElementById('season').value = s;
     document.getElementById('episode').value = e;
+    showPlayerTvPicker(id, title || (type + ' #' + id), s, e);
+  } else {
+    hidePlayerTvPicker();
   }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3217,6 +3345,7 @@ function goHome() {
   document.getElementById('playerWrap').classList.remove('open');
   document.getElementById('ctrlBar').classList.remove('on');
   document.getElementById('playerDock').classList.remove('on');
+  hidePlayerTvPicker();
   document.body.classList.remove('player-mode');
   document.getElementById('heroSection').style.display = '';
   document.getElementById('playerTitleBar').classList.remove('on');
@@ -3627,7 +3756,10 @@ function saveHistory(id, type, s, e, title, ts, dur, pct, silent) {
   var entry = { key:key, id:id, type:type, s:s||1, e:e||1, title:title||(idx>=0?h[idx].title:(type==='movie'?'Movie':'Show')+' #'+id), ts:ts||0, dur:dur||0, pct:pct||0, at:Date.now() };
   if (idx >= 0) { if (!title) entry.title = h[idx].title; h[idx] = entry; } else { h.unshift(entry); }
   localStorage.setItem(HK, JSON.stringify(h.slice(0, 30)));
-  if (silent && !isNew && updateCWProgressInPlace(key, entry)) return;
+  if (silent && !isNew && updateCWProgressInPlace(key, entry)) {
+    refreshPlayerEpGridIfOpen();
+    return;
+  }
   renderCW();
 }
 function removeHistory(key) {
@@ -4937,21 +5069,9 @@ function loadEpisodes(showId, title) {
   grid.innerHTML = '<div style="color:var(--muted);font-size:12px">Loading...</div>';
   tmdbFetch('/tv/'+showId+'/season/'+season).then(function(d) {
     if (!d || !d.episodes) { grid.innerHTML=''; return; }
-    var hist = getHistory().find(function(x){ return x.key === 'tv_' + showId; });
-    var hs = hist ? parseInt(hist.s, 10) : 0;
-    var he = hist ? parseInt(hist.e, 10) : 0;
-    var hp = hist ? (hist.pct || 0) : 0;
-    grid.innerHTML = d.episodes.map(function(ep) {
-      var sn = parseInt(season, 10);
-      var done = hs === sn && ep.episode_number < he;
-      var current = hs === sn && ep.episode_number === he;
-      var completed = current && hp >= 90;
-      var watched = done || completed;
-      var cls = 'ep-btn' + (watched ? ' watched' : '') + (completed ? ' done' : '') + (current && !completed ? ' current' : '');
-      var tip = (ep.name || ('Episode ' + ep.episode_number)) + (current && hp > 2 ? ' · ' + Math.round(hp) + '%' : '');
-      var pctBar = current && hp > 2 && hp < 90 ? '<span class="ep-pct" style="width:'+Math.min(100, hp)+'%"></span>' : '';
-      return '<button class="'+cls+'" title="'+esc(tip)+'" onclick="quickPlayTV('+showId+','+season+','+ep.episode_number+',\''+esc(title)+'\')">'+ep.episode_number+pctBar+'</button>';
-    }).join('');
+    grid.innerHTML = renderEpisodeButtons(showId, season, d.episodes, title, function(id, s, ep, t) {
+      return 'quickPlayTV(' + id + ',' + s + ',' + ep + ',\'' + esc(t) + '\')';
+    });
   });
 }
 
