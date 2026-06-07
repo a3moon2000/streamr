@@ -934,7 +934,7 @@
       position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
       background: rgba(255,255,255,0.25);
     }
-    .cw-prog-fill { height: 100%; background: var(--accent); }
+    .cw-prog-fill { height: 100%; background: var(--accent); transition: width 0.4s linear; }
     .cw-hover {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,0.45); opacity: 0; transition: opacity 200ms;
@@ -3560,7 +3560,7 @@ window.addEventListener('message', function(ev) {
       var id = document.getElementById('tmdbId').value;
       updateExternalSubtitle(current);
       if (id && current > 5) {
-        saveHistory(id, currentType, document.getElementById('season').value, document.getElementById('episode').value, null, current, duration, p);
+        saveHistory(id, currentType, document.getElementById('season').value, document.getElementById('episode').value, null, current, duration, p, true);
       }
     } else if (status === 'pause' || status === 'paused') {
       evt.textContent = '⏸';
@@ -3581,12 +3581,30 @@ window.addEventListener('message', function(ev) {
 /* History */
 var HK = 'streamr_v2';
 function getHistory() { try { return JSON.parse(localStorage.getItem(HK)) || []; } catch(e) { return []; } }
-function saveHistory(id, type, s, e, title, ts, dur, pct) {
+function cwMetaText(item) {
+  var meta = item.type === 'tv' ? 'S' + item.s + ' E' + item.e : fmt(item.ts);
+  if ((item.pct || 0) > 0) meta += ' · ' + item.pct.toFixed(0) + '%';
+  return meta;
+}
+
+function updateCWProgressInPlace(key, entry) {
+  var card = document.querySelector('[data-cw="' + key + '"]');
+  if (!card) return false;
+  var fill = card.querySelector('.cw-prog-fill');
+  if (fill) fill.style.width = Math.min(100, entry.pct || 0) + '%';
+  var meta = card.querySelector('.cw-meta');
+  if (meta) meta.textContent = cwMetaText(entry);
+  return true;
+}
+
+function saveHistory(id, type, s, e, title, ts, dur, pct, silent) {
   var h = getHistory(), key = type + '_' + id;
   var idx = h.findIndex(function(x){ return x.key === key; });
+  var isNew = idx < 0;
   var entry = { key:key, id:id, type:type, s:s||1, e:e||1, title:title||(idx>=0?h[idx].title:(type==='movie'?'Movie':'Show')+' #'+id), ts:ts||0, dur:dur||0, pct:pct||0, at:Date.now() };
   if (idx >= 0) { if (!title) entry.title = h[idx].title; h[idx] = entry; } else { h.unshift(entry); }
   localStorage.setItem(HK, JSON.stringify(h.slice(0, 30)));
+  if (silent && !isNew && updateCWProgressInPlace(key, entry)) return;
   renderCW();
 }
 function removeHistory(key) {
@@ -3613,8 +3631,7 @@ function renderCW() {
   sec.style.display = 'block';
   grid.innerHTML = h.map(function(item) {
     var p = Math.min(100, item.pct || 0);
-    var meta = item.type === 'tv' ? 'S'+item.s+' E'+item.e : fmt(item.ts);
-    if (p > 0) meta += ' · '+p.toFixed(0)+'%';
+    var meta = cwMetaText(item);
     return '<div class="cw-card" data-cw="'+esc(item.key)+'">'
       + '<div class="cw-thumb" onclick="loadPlayer(\''+esc(item.id)+'\',\''+item.type+'\',\''+item.s+'\',\''+item.e+'\','+item.ts+',\''+esc(item.title)+'\')">'
       + cwThumbHTML(item)
