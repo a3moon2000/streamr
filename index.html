@@ -293,13 +293,14 @@
     .player-inner { position: relative; padding-top: 56.25%; }
     .player-wrap iframe {
       position: absolute; inset: 0; width: 100%; height: 100%; border: none;
+      z-index: 1;
     }
     .subtitle-overlay {
       position: absolute;
       left: 16px;
       right: 16px;
       bottom: 76px;
-      z-index: 3;
+      z-index: 4;
       display: none;
       justify-content: center;
       pointer-events: none;
@@ -346,14 +347,21 @@
     }
     body.player-mode .player-wrap.open {
       background: #000000;
+      position: relative;
+      z-index: 1;
     }
     body.player-mode .player-inner {
       height: var(--player-mobile-height, 62dvh);
       min-height: 360px;
       padding-top: 0;
+      overflow: hidden;
     }
     body.player-mode .player-inner iframe {
       height: 100%;
+    }
+    body.player-mode .player-dock.on {
+      position: relative;
+      z-index: 2;
     }
     .player-title-bar {
       display: none; align-items: center; gap: 12px;
@@ -414,16 +422,23 @@
     .player-loading-retry:hover { filter: brightness(1.08); }
 
     /* Player dock (controls under video) */
-    .player-dock { display: none; background: #181818; border-bottom: 1px solid var(--border); transition: opacity 0.35s ease, transform 0.35s ease; }
+    .player-dock { display: none; background: #181818; border-bottom: 1px solid var(--border); }
     body.player-mode .player-dock.on { display: block; }
-    body.player-mode .player-dock.idle-hide { opacity: 0; transform: translateY(6px); pointer-events: none; }
+    body.player-mode .player-dock.idle-hide .dock-progress,
+    body.player-mode .player-dock.idle-hide .dock-row.dock-main {
+      opacity: 0; transform: translateY(6px); pointer-events: none;
+    }
+    body.player-mode .player-dock.idle-hide .dock-row.dock-sub {
+      opacity: 1; transform: none; pointer-events: auto;
+    }
     body.player-mode .player-title-bar.idle-hide { opacity: 0; pointer-events: none; }
     body.player-mode .prog-strip { display: none !important; }
-    .dock-progress { height: 3px; background: #2a2a2a; }
+    .dock-progress { height: 3px; background: #2a2a2a; transition: opacity 0.35s ease, transform 0.35s ease; }
     .dock-progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 1s linear; border-radius: 0 2px 2px 0; }
     .dock-row {
       display: flex; align-items: center; gap: 8px;
       padding: 10px clamp(16px, 4vw, 56px); flex-wrap: wrap;
+      transition: opacity 0.35s ease, transform 0.35s ease;
     }
     .dock-time {
       font-family: var(--mono); font-size: 11px; color: var(--muted);
@@ -655,7 +670,8 @@
 
     /* Content */
     .content { max-width: 100%; margin: 0; padding: 0 0 80px; overflow-x: clip; }
-    .hero, header, footer, .player-section { max-width: 100%; overflow-x: clip; }
+    .hero, header, footer { max-width: 100%; overflow-x: clip; }
+    .player-section { max-width: 100%; overflow-x: clip; overflow-y: visible; }
     .sec-header {
       display: flex; align-items: center; gap: 12px;
       margin-bottom: 12px; margin-top: 36px;
@@ -1673,7 +1689,7 @@
       body.player-mode .ctrl-bar { display: none !important; }
       .player-tv-pick { padding: 14px 16px 18px; }
       .player-tv-pick .ep-grid { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
-      body.player-mode .player-inner { min-height: 320px; }
+      body.player-mode .player-inner { min-height: 240px; }
       body.player-mode .player-dock .dock-row { padding: 8px 14px; }
       body.player-mode .player-dock .dock-btn { width: 40px; height: 40px; }
       body.player-mode .player-dock .dock-chip { min-height: 36px; padding: 0 12px; }
@@ -3212,6 +3228,7 @@ function loadPlayerEpisodes(showId, title, season, opts) {
       var curBtn = grid.querySelector('.ep-btn.current');
       if (curBtn) curBtn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
     }
+    if (document.body.classList.contains('player-mode')) sizeMobilePlayer();
   });
 }
 
@@ -3453,6 +3470,17 @@ function lockPlayerScrollTop() {
   if (document.body) document.body.scrollTop = 0;
 }
 
+function measurePlayerLayoutReserve() {
+  var reserve = 24;
+  var bar = document.getElementById('playerTitleBar');
+  var dock = document.getElementById('playerDock');
+  var tvPick = document.getElementById('playerTvPick');
+  if (bar && bar.classList.contains('on')) reserve += bar.offsetHeight || 50;
+  if (dock && dock.classList.contains('on')) reserve += dock.offsetHeight || 120;
+  if (tvPick && tvPick.classList.contains('on')) reserve += Math.min(tvPick.offsetHeight || 160, 220);
+  return reserve;
+}
+
 function sizeMobilePlayer() {
   if (!document.body.classList.contains('player-mode')) return;
   var inner = document.getElementById('playerInner');
@@ -3464,9 +3492,10 @@ function sizeMobilePlayer() {
     document.documentElement.style.removeProperty('--player-mobile-height');
     return;
   }
-  var reserve = vw <= 720 ? 88 : 350;
-  var minH = vw <= 720 ? 320 : 360;
-  var target = Math.round(Math.max(minH, Math.min(vh * 0.68, vh - reserve, 620)));
+  var reserve = Math.max(measurePlayerLayoutReserve(), vw <= 720 ? 170 : 350);
+  var minH = vw <= 720 ? 240 : 360;
+  var maxH = vw <= 720 ? 520 : 620;
+  var target = Math.round(Math.max(minH, Math.min(vh * 0.58, vh - reserve, maxH)));
   inner.style.height = target + 'px';
   inner.style.paddingTop = '0';
   document.documentElement.style.setProperty('--player-mobile-height', target + 'px');
@@ -3517,10 +3546,11 @@ function loadPlayer(id, type, s, e, progress, title) {
   document.getElementById('playerWrap').classList.add('open');
   document.getElementById('ctrlBar').classList.add('on');
   document.body.classList.add('player-mode');
-  sizeMobilePlayer();
   document.getElementById('heroSection').style.display = 'none';
   document.getElementById('playerTitleBar').classList.add('on');
   updatePlayerChrome(type, s, e, title || (type + ' #' + id));
+  sizeMobilePlayer();
+  requestAnimationFrame(sizeMobilePlayer);
   setPageTitle(title || (type + ' #' + id));
   updateProviderBadge();
   var resumeEl = document.getElementById('dockResume');
@@ -3543,6 +3573,8 @@ function loadPlayer(id, type, s, e, progress, title) {
   } else {
     hidePlayerTvPicker();
   }
+  sizeMobilePlayer();
+  requestAnimationFrame(sizeMobilePlayer);
 
   lockPlayerScrollTop();
   requestAnimationFrame(function() {
@@ -3563,6 +3595,13 @@ function loadPlayer(id, type, s, e, progress, title) {
     wrap.addEventListener('mousemove', bumpPlayerIdle);
     wrap.addEventListener('touchstart', bumpPlayerIdle, { passive: true });
     wrap.addEventListener('click', bumpPlayerIdle);
+  }
+  var dock = document.getElementById('playerDock');
+  if (dock && !dock._idleBound) {
+    dock._idleBound = true;
+    dock.addEventListener('mousemove', bumpPlayerIdle);
+    dock.addEventListener('touchstart', bumpPlayerIdle, { passive: true });
+    dock.addEventListener('click', bumpPlayerIdle);
   }
 }
 
