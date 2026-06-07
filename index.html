@@ -2915,11 +2915,11 @@ function buildUrl(id, type, s, e, progress, forceAutoplay) {
     var cz = new URLSearchParams();
     cz.set('autoplay', autoOn ? 'true' : 'false');
     cz.set('poster', 'true');
-    cz.set('chromecast', mobile ? 'false' : 'true');
+    cz.set('chromecast', 'true');
     cz.set('servericon', 'true');
     cz.set('setting', 'true');
     cz.set('autonext', 'false');
-    cz.set('pip', mobile ? 'false' : 'true');
+    cz.set('pip', 'true');
     var czServer = getCinezoServer();
     if (czServer) cz.set('server', czServer);
     cz.set('font', 'Noto Sans Arabic');
@@ -3459,10 +3459,6 @@ function loadPlayer(id, type, s, e, progress, title) {
   iframe.setAttribute('frameborder', '0');
   iframe.setAttribute('allowfullscreen', 'true');
   iframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media');
-  iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
-  if (isMobileDevice()) {
-    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-fullscreen');
-  }
   iframe.setAttribute('loading', 'eager');
   iframe.addEventListener('load', function() {
     schedulePlayerUnmute();
