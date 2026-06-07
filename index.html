@@ -2951,7 +2951,7 @@ function postToPlayerFrame(payload, origin) {
   } catch (e) {}
 }
 
-function ensurePlayerUnmuted() {
+function unmutePlayerIframe() {
   if (playerUnmuteAttempts > 14) return;
   playerUnmuteAttempts++;
   var iframe = getPlayerIframe();
@@ -2978,9 +2978,9 @@ function ensurePlayerUnmuted() {
 
 function schedulePlayerUnmute() {
   playerUnmuteAttempts = 0;
-  ensurePlayerUnmuted();
+  unmutePlayerIframe();
   [50, 150, 400, 900, 1800, 3500].forEach(function(ms) {
-    setTimeout(ensurePlayerUnmuted, ms);
+    setTimeout(unmutePlayerIframe, ms);
   });
 }
 
@@ -3116,6 +3116,7 @@ function dismissPlayerLoading(ok) {
 function showPlayerLoading() {
   playerGotProgress = false;
   playerReadyMarked = false;
+  playerUnmuteAttempts = 0;
   var inner = document.getElementById('playerInner');
   var existing = document.getElementById('playerLoading');
   if (existing) {
@@ -3335,6 +3336,7 @@ function loadPlayer(id, type, s, e, progress, title) {
     setTimeout(function() { markPlayerReady('Playing'); }, 900);
   });
   inner.appendChild(iframe);
+  unmutePlayerIframe();
   var sub = document.createElement('div');
   sub.className = 'subtitle-overlay';
   sub.id = 'subtitleOverlay';
@@ -3750,7 +3752,7 @@ window.addEventListener('message', function(ev) {
     var msgType = data.type || data.event || '';
     if (msgType === 'play' || msgType === 'ready' || msgType === 'playing') {
       markPlayerReady('Playing');
-      ensurePlayerUnmuted();
+      unmutePlayerIframe();
     }
     if (data.type !== 'PLAYER_EVENT') return;
     var d = data.data;
@@ -3766,9 +3768,9 @@ window.addEventListener('message', function(ev) {
       if (!playerGotProgress) {
         playerSourceFailCount = 0;
         markPlayerReady('Playing');
-        ensurePlayerUnmuted();
+        unmutePlayerIframe();
       } else if (status === 'playing') {
-        ensurePlayerUnmuted();
+        unmutePlayerIframe();
       }
       strip.classList.add('on');
       evt.textContent = '▶';
