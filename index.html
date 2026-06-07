@@ -1516,6 +1516,7 @@
       }
       body.player-mode,
       body:has(.browse-overlay.on),
+      body:has(.tvhub-overlay.on),
       body:has(.detail-backdrop.on),
       body:has(.person-backdrop.on),
       body:has(.trailer-backdrop.on),
@@ -1525,6 +1526,7 @@
       .mob-nav { display: flex; }
       body.player-mode .mob-nav,
       body:has(.browse-overlay.on) .mob-nav,
+      body:has(.tvhub-overlay.on) .mob-nav,
       body:has(.detail-backdrop.on) .mob-nav,
       body:has(.person-backdrop.on) .mob-nav,
       body:has(.trailer-backdrop.on) .mob-nav,
@@ -2190,6 +2192,10 @@
   <button class="mob-nav-btn" data-tab="search" type="button" onclick="mobNav('search')">
     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
     Search
+  </button>
+  <button class="mob-nav-btn" data-tab="tv" type="button" onclick="mobNav('tv')">
+    <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M8 3l4 4 4-4"/></svg>
+    TV
   </button>
   <button class="mob-nav-btn" data-tab="list" type="button" onclick="mobNav('list')">
     <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
@@ -3908,6 +3914,11 @@ function navTo(id, pill) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
+  if (id === 'navTV') {
+    setMobTab('tv');
+    openTVHub();
+    return;
+  }
   var el = document.getElementById(id);
   if (!el) return;
   var y = el.getBoundingClientRect().top + window.pageYOffset - getNavOffset();
@@ -3934,6 +3945,10 @@ function mobNav(tab) {
     if (input) {
       setTimeout(function(){ input.focus(); }, 280);
     }
+    return;
+  }
+  if (tab === 'tv') {
+    openTVHub();
     return;
   }
   if (tab === 'list') {
@@ -4349,6 +4364,12 @@ function openTVHub() {
   loadTVHubPage();
 }
 
+function openTVHubForShow(id, title) {
+  closeDetail();
+  openTVHub();
+  openTVHubShow(id, title);
+}
+
 function closeTVHub() {
   document.getElementById('tvHubOverlay').classList.remove('on');
   var detailOn = document.getElementById('detailBackdrop').classList.contains('on');
@@ -4689,6 +4710,7 @@ function openDetail(id, type, title) {
       + '<div class="detail-body">'
       + '<div class="detail-actions">'
       + '<button class="sp-btn play" onclick="'+playAction+'"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'+playLabel+'</button>'
+      + (type === 'tv' ? '<button class="sp-btn info" onclick="openTVHubForShow('+id+',\''+esc(t)+'\')"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8M12 18v2"/></svg>Episodes</button>' : '')
       + (trailerKey ? '<button class="sp-btn info" onclick="openTrailer(\''+trailerKey+'\')"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Trailer</button>' : '')
       + '<button class="sp-btn info" id="detailFav" onclick="toggleFav('+id+',\''+type+'\',\''+esc(t)+'\')">'
       + '<svg viewBox="0 0 24 24" style="fill:'+(faved?'currentColor':'none')+';stroke:currentColor;stroke-width:2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>'
