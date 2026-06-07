@@ -154,7 +154,20 @@
     .sr-info { flex: 1; min-width: 0; }
     .sr-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sr-meta { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+    .sr-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .sr-btn {
+      height: 28px; padding: 0 10px; border-radius: 4px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text); font-size: 11px; font-weight: 600; cursor: pointer;
+    }
+    .sr-btn.play { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .sr-btn:hover { filter: brightness(1.08); }
     .sr-empty { padding: 20px; text-align: center; color: var(--muted); font-size: 12px; }
+    .tvhub-search { padding: 0 0 14px; }
+    .tvhub-search input {
+      width: 100%; max-width: 420px; padding: 10px 14px; border-radius: var(--r);
+      border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 14px;
+    }
+    .tvhub-search input:focus { border-color: rgba(255,255,255,0.35); outline: none; }
 
     /* Header buttons */
     .hdr-btn {
@@ -2261,6 +2274,9 @@
   </div>
   <div class="tvhub-body">
     <div class="tvhub-list" id="tvHubList">
+      <div class="tvhub-search">
+        <input type="search" id="tvHubSearchInput" placeholder="Search TV shows…" autocomplete="off" oninput="tvHubSearchInput()">
+      </div>
       <div class="genre-tabs tvhub-filters" id="tvHubGenreTabs">
         <button class="genre-tab active" type="button" onclick="filterTVHubGenre(0, this)">All</button>
         <button class="genre-tab" type="button" onclick="filterTVHubGenre(10765, this)">Sci-Fi</button>
@@ -2346,6 +2362,13 @@
       <div class="modal-hint">Free key from <a href="https://subdl.com/api" target="_blank" style="color:var(--accent)">subdl.com/api</a>. Auto-loads Persian subs in the player.</div>
     </div>
     <div class="modal-field">
+      <label class="tog-label" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:0">
+        Auto-play next episode
+        <span class="sw"><input type="checkbox" id="settingsEpSel" checked><span class="sw-track"></span></span>
+      </label>
+      <div class="modal-hint">When an episode ends, automatically load the next one (TV shows).</div>
+    </div>
+    <div class="modal-field">
       <label>Default Player</label>
       <select class="pref-select" id="settingsPlayerSource" style="width:100%;max-width:none">
         <option value="cinezo">Cinezo (recommended)</option>
@@ -2371,7 +2394,7 @@
 </div>
 
 <script>
-var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'cinezo', currentSubtitleLang = 'fa', searchTimeout = null;
+var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'cinezo', currentSubtitleLang = 'fa', searchTimeout = null, searchFocusIdx = -1;
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
 var PLAYER_SOURCES = ['cinezo'];
@@ -2384,6 +2407,12 @@ var playerIdleTimer = null, subtitlesVisible = true, subtitleSizeIdx = 1;
 var tvHubPage = 1, tvHubShowId = null, tvHubShowTitle = '', tvHubGenre = 0;
 var playerTvMeta = { id: null, title: '', seasons: null, lastSeasonRendered: null };
 var prefetchDetailCache = {};
+var trendingWeekCache = null;
+var historyWriteTimer = null;
+var lastHistorySnapshot = {};
+var historyMem = null;
+var tvHubSearchTimer = null;
+var tvHubSearchQuery = '';
 
 var GRAD = [
   ['#1a1a2e','#16213e'],['#0f3460','#533483'],['#2d1b33','#1a0a0a'],['#0a2744','#1a4a7a'],
@@ -2769,19 +2798,35 @@ function doSearch(query, resultsEl) {
         var year = (r.release_date || r.first_air_date || '').substring(0, 4);
         var type = r.media_type;
         var poster = r.poster_path ? '<img src="' + TMDB_IMG + 'w92' + r.poster_path + '" alt="">' : '<div class="sr-placeholder"></div>';
-        return '<div class="sr-item" onclick="playFromSearch(' + r.id + ',\'' + type + '\',\'' + esc(title) + '\')">'
+        return '<div class="sr-item" data-sr-id="' + r.id + '" data-sr-type="' + type + '">'
           + poster
           + '<div class="sr-info"><div class="sr-title">' + title + '</div>'
-          + '<div class="sr-meta">' + type.toUpperCase() + ' · ' + year + (r.vote_average ? ' · ★ ' + r.vote_average.toFixed(1) : '') + '</div></div></div>';
+          + '<div class="sr-meta">' + type.toUpperCase() + ' · ' + year + (r.vote_average ? ' · ★ ' + r.vote_average.toFixed(1) : '') + '</div></div>'
+          + '<div class="sr-actions">'
+          + '<button class="sr-btn play" type="button" onclick="playSearchResult(' + r.id + ',\'' + type + '\',\'' + esc(title) + '\')">Play</button>'
+          + '<button class="sr-btn" type="button" onclick="infoFromSearch(' + r.id + ',\'' + type + '\',\'' + esc(title) + '\')">Info</button>'
+          + '</div></div>';
       }).join('');
     }
     resultsEl.classList.add('on');
+    searchFocusIdx = items.length ? 0 : -1;
+    var rendered = resultsEl.querySelectorAll('.sr-item');
+    rendered.forEach(function(el, i){ el.classList.toggle('active', i === searchFocusIdx); });
   });
 }
 
-function playFromSearch(id, type, title) {
+function closeSearchResults() {
   document.getElementById('headerSearchResults').classList.remove('on');
   document.getElementById('headerSearchInput').value = '';
+}
+
+function playSearchResult(id, type, title) {
+  closeSearchResults();
+  quickPlay(id, type, title);
+}
+
+function infoFromSearch(id, type, title) {
+  closeSearchResults();
   openDetail(id, type, title);
 }
 
@@ -2800,7 +2845,6 @@ function playFromSearch(id, type, title) {
     if (q.length >= 2) doSearch(q, results);
     else showRecentSearches(results);
   });
-  var searchFocusIdx = -1;
   function highlightSearchItem(items) {
     items.forEach(function(el, i){ el.classList.toggle('active', i === searchFocusIdx); });
     if (searchFocusIdx >= 0 && items[searchFocusIdx]) items[searchFocusIdx].scrollIntoView({ block: 'nearest' });
@@ -2816,9 +2860,11 @@ function playFromSearch(id, type, title) {
       ev.preventDefault();
       searchFocusIdx = Math.max(searchFocusIdx - 1, 0);
       highlightSearchItem(items);
-    } else if (ev.key === 'Enter' && searchFocusIdx >= 0) {
+    } else if (ev.key === 'Enter') {
       ev.preventDefault();
-      items[searchFocusIdx].click();
+      var idx = searchFocusIdx >= 0 ? searchFocusIdx : 0;
+      var playBtn = items[idx] && items[idx].querySelector('.sr-btn.play');
+      if (playBtn) playBtn.click();
       searchFocusIdx = -1;
     } else if (ev.key === 'Escape') {
       results.classList.remove('on');
@@ -3394,7 +3440,7 @@ function loadPlayer(id, type, s, e, progress, title) {
   iframe.setAttribute('loading', 'eager');
   iframe.addEventListener('load', function() {
     schedulePlayerUnmute();
-    setTimeout(function() { markPlayerReady('Playing'); }, 900);
+    setDockStatus('Connecting…', true);
   });
   inner.appendChild(iframe);
   unmutePlayerIframe();
@@ -3440,7 +3486,9 @@ function loadPlayer(id, type, s, e, progress, title) {
   }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  saveHistory(id, type, s, e, title || (type + ' #' + id), progress || 0, 0, 0);
+  if (progress && progress > 10) {
+    saveHistory(id, type, s, e, title || (type + ' #' + id), progress, 0, 0);
+  }
   loadExternalFarsiSubtitles(id, type, s, e);
   maybeShowQualityTip();
   bumpPlayerIdle();
@@ -3484,6 +3532,7 @@ function goHome() {
   }
   document.getElementById('tmdbId').value = '';
   setPageTitle();
+  setMobTab('home');
   var y = 0;
   try { y = parseInt(sessionStorage.getItem('streamr_scroll_y') || '0', 10) || 0; } catch(e) {}
   window.scrollTo({ top: y, behavior: y > 0 ? 'smooth' : 'auto' });
@@ -3849,11 +3898,21 @@ window.addEventListener('message', function(ev) {
     } else if (status === 'pause' || status === 'paused') {
       evt.textContent = '⏸';
       setDockStatus('Paused', true);
+      var pid = document.getElementById('tmdbId').value;
+      if (pid && current > 5) {
+        saveHistory(pid, currentType, document.getElementById('season').value, document.getElementById('episode').value, null, current, duration, d.progress || (duration ? (current / duration) * 100 : 0));
+        flushHistoryStore();
+      }
     } else if (status === 'play') { evt.textContent = '▶'; setDockStatus('Playing', false); }
     else if (status === 'ended' || status === 'completed') {
       evt.textContent = '✓'; time.textContent = 'Finished';
       setDockStatus('Finished', true);
       updateDockProgress(duration || 100, duration || 100, 100);
+      var fid = document.getElementById('tmdbId').value;
+      if (fid) {
+        saveHistory(fid, currentType, document.getElementById('season').value, document.getElementById('episode').value, null, duration || current, duration, 100);
+        flushHistoryStore();
+      }
       if (currentType === 'tv' && document.getElementById('epSel') && document.getElementById('epSel').checked && Date.now() - lastAutoAdvanceAt > 5000) {
         lastAutoAdvanceAt = Date.now();
         advanceToNextEpisode();
@@ -3864,7 +3923,43 @@ window.addEventListener('message', function(ev) {
 
 /* History */
 var HK = 'streamr_v2';
-function getHistory() { try { return JSON.parse(localStorage.getItem(HK)) || []; } catch(e) { return []; } }
+function getHistory() {
+  if (historyMem) return historyMem;
+  try { historyMem = JSON.parse(localStorage.getItem(HK)) || []; } catch(e) { historyMem = []; }
+  return historyMem;
+}
+function getHistoryEntry(id, type) {
+  return getHistory().find(function(x) { return x.key === type + '_' + id; });
+}
+function getResumeProgress(hist, type, s, e) {
+  if (!hist) return 0;
+  if (type === 'tv') {
+    if (parseInt(hist.s, 10) === parseInt(s, 10) && parseInt(hist.e, 10) === parseInt(e, 10) && ((hist.pct || 0) > 2 || (hist.ts || 0) > 0)) {
+      return hist.ts || 0;
+    }
+    return 0;
+  }
+  if ((hist.pct || 0) > 2 || (hist.ts || 0) > 60) return hist.ts || 0;
+  return 0;
+}
+function hasMeaningfulProgress(item) {
+  return (item.pct || 0) >= 5 || (item.ts || 0) >= 60;
+}
+function shouldPersistHistory(key, entry) {
+  var prev = lastHistorySnapshot[key];
+  if (!prev) return true;
+  if (Math.abs((entry.pct || 0) - (prev.pct || 0)) >= 2) return true;
+  if (Math.abs((entry.ts || 0) - (prev.ts || 0)) >= 30) return true;
+  return false;
+}
+function flushHistoryStore(h) {
+  historyMem = (h || historyMem || getHistory()).slice(0, 30);
+  try { localStorage.setItem(HK, JSON.stringify(historyMem)); } catch(e) {}
+}
+function scheduleHistoryFlush() {
+  clearTimeout(historyWriteTimer);
+  historyWriteTimer = setTimeout(function() { flushHistoryStore(); }, 12000);
+}
 function cwMetaText(item) {
   var meta = item.type === 'tv' ? 'S' + item.s + ' E' + item.e : fmt(item.ts);
   if ((item.pct || 0) > 0) meta += ' · ' + item.pct.toFixed(0) + '%';
@@ -3887,16 +3982,29 @@ function saveHistory(id, type, s, e, title, ts, dur, pct, silent) {
   var isNew = idx < 0;
   var entry = { key:key, id:id, type:type, s:s||1, e:e||1, title:title||(idx>=0?h[idx].title:(type==='movie'?'Movie':'Show')+' #'+id), ts:ts||0, dur:dur||0, pct:pct||0, at:Date.now() };
   if (idx >= 0) { if (!title) entry.title = h[idx].title; h[idx] = entry; } else { h.unshift(entry); }
-  localStorage.setItem(HK, JSON.stringify(h.slice(0, 30)));
-  if (silent && !isNew) {
-    var cwOk = updateCWProgressInPlace(key, entry);
+  historyMem = h.slice(0, 30);
+  if (silent) {
     if (type === 'tv') updatePlayerEpGridInPlace(entry);
-    if (cwOk) return;
+    if (!isNew && updateCWProgressInPlace(key, entry) && shouldPersistHistory(key, entry)) {
+      lastHistorySnapshot[key] = { pct: entry.pct || 0, ts: entry.ts || 0 };
+      flushHistoryStore(historyMem);
+      scheduleHistoryFlush();
+      return;
+    }
+    if (!shouldPersistHistory(key, entry)) return;
+    lastHistorySnapshot[key] = { pct: entry.pct || 0, ts: entry.ts || 0 };
+    flushHistoryStore(historyMem);
+    scheduleHistoryFlush();
+    renderCW();
+    return;
   }
+  lastHistorySnapshot[key] = { pct: entry.pct || 0, ts: entry.ts || 0 };
+  flushHistoryStore(historyMem);
   renderCW();
 }
 function removeHistory(key) {
-  localStorage.setItem(HK, JSON.stringify(getHistory().filter(function(x){ return x.key !== key; })));
+  historyMem = getHistory().filter(function(x){ return x.key !== key; });
+  flushHistoryStore(historyMem);
   renderCW();
 }
 
@@ -3912,7 +4020,10 @@ function cwThumbHTML(item) {
 }
 
 function renderCW() {
-  var h = getHistory().filter(function(item){ return !isTitleHidden(item.id, item.type); });
+  var h = getHistory().filter(function(item){
+    if (isTitleHidden(item.id, item.type)) return false;
+    return hasMeaningfulProgress(item);
+  }).sort(function(a, b) { return (b.at || 0) - (a.at || 0); });
   var sec = document.getElementById('continueSection');
   var grid = document.getElementById('cwGrid');
   if (h.length === 0) { sec.style.display = 'none'; return; }
@@ -4090,10 +4201,13 @@ function filterGenre(type, genreId, btn) {
 }
 
 function quickPlay(id, type, title) {
-  var h = getHistory(), key = type + '_' + id;
-  var ex = h.find(function(x){ return x.key === key; });
-  if (ex && ex.pct > 2) { loadPlayer(id, type, ex.s, ex.e, ex.ts, title); }
-  else { loadPlayer(id, type, 1, 1, 0, title); }
+  var ex = getHistoryEntry(id, type);
+  if (type === 'tv' && ex && ((ex.pct || 0) > 2 || (ex.ts || 0) > 0)) {
+    loadPlayer(id, type, ex.s, ex.e, getResumeProgress(ex, type, ex.s, ex.e), title);
+    return;
+  }
+  var progress = getResumeProgress(ex, type, 1, 1);
+  loadPlayer(id, type, 1, 1, progress, title);
 }
 
 /* Settings */
@@ -4115,6 +4229,9 @@ function openSettings() {
   if (subIn) subIn.value = SUBDL_KEY;
   var srcIn = document.getElementById('settingsPlayerSource');
   if (srcIn) srcIn.value = normalizePlayerSource(currentPlayerSource);
+  var settingsEp = document.getElementById('settingsEpSel');
+  var epSel = document.getElementById('epSel');
+  if (settingsEp && epSel) settingsEp.checked = epSel.checked;
   renderGenreHideChips();
   renderHiddenTitlesList();
   document.getElementById('settingsModal').classList.add('on');
@@ -4140,6 +4257,12 @@ function saveSettings() {
   else localStorage.removeItem('streamr_subdl_key');
   var srcIn = document.getElementById('settingsPlayerSource');
   if (srcIn) setPlayerSource(srcIn.value, true);
+  var settingsEp = document.getElementById('settingsEpSel');
+  var epSel = document.getElementById('epSel');
+  if (settingsEp && epSel) {
+    epSel.checked = settingsEp.checked;
+    localStorage.setItem('streamr_epsel', settingsEp.checked ? '1' : '0');
+  }
   localStorage.setItem('streamr_hidden_genres', JSON.stringify(HIDDEN_GENRES));
   closeSettings();
   refreshAllRows();
@@ -4194,8 +4317,6 @@ function navTo(id, pill) {
   }
   if (id === 'navTV') {
     setMobTab('tv');
-    openTVHub();
-    return;
   }
   var el = document.getElementById(id);
   if (!el) return;
@@ -4257,10 +4378,12 @@ window.addEventListener('appinstalled', function(){
 });
 function clearData() {
   if (confirm('Clear all watch history and cached data?')) {
-    localStorage.removeItem(HK); localStorage.removeItem('streamr_posters_v2');
-    localStorage.removeItem('streamr_meta_v1'); localStorage.removeItem('streamr_tmdb_key');
-    localStorage.removeItem('streamr_subdl_key');
-    localStorage.removeItem(HK_HIDDEN); localStorage.removeItem('streamr_hidden_meta_v1');
+    [HK, LK, RK_SEARCH, 'streamr_posters_v2', 'streamr_meta_v1', 'streamr_tmdb_key', 'streamr_subdl_key',
+      HK_HIDDEN, 'streamr_hidden_meta_v1', 'streamr_hidden_genres', 'streamr_player_source', 'streamr_manual_2embed',
+      'streamr_autoplay', 'streamr_epsel', 'streamr_cinezo_server', 'streamr_quality_tip_seen', 'streamr_subs_on', 'streamr_sub_size'
+    ].forEach(function(k) { try { localStorage.removeItem(k); } catch(e) {} });
+    historyMem = null;
+    lastHistorySnapshot = {};
     hiddenTitleMeta = {};
     TMDB_KEY = ''; SUBDL_KEY = ''; posterCache = {}; metaCache = {};
     closeSettings(); location.reload();
@@ -4275,6 +4398,13 @@ document.getElementById('tmdbId').addEventListener('keydown', function(ev) { if 
 document.getElementById('autoPlay').addEventListener('change', savePlayerPrefs);
 var epSelEl = document.getElementById('epSel');
 if (epSelEl) epSelEl.addEventListener('change', savePlayerPrefs);
+var settingsEpEl = document.getElementById('settingsEpSel');
+if (settingsEpEl) settingsEpEl.addEventListener('change', function() {
+  var epSel = document.getElementById('epSel');
+  if (epSel) epSel.checked = settingsEpEl.checked;
+  savePlayerPrefs();
+});
+window.addEventListener('beforeunload', function() { flushHistoryStore(); });
 initPlayerPrefs();
 
 /* Scroll arrows */
@@ -4286,10 +4416,18 @@ function scrollRow(id, dir) {
 /* ── Cinematic Spotlight ──────────────────────────── */
 var spotlightSlides = [], spotIndex = 0, spotTimer = null;
 
-function renderSpotlight() {
+function loadTrendingWeek(cb) {
+  if (trendingWeekCache) { cb(trendingWeekCache); return; }
   tmdbFetch('/trending/all/week').then(function(data) {
     if (!data || !data.results) return;
-    spotlightSlides = dropHidden(data.results.filter(function(r){
+    trendingWeekCache = data.results;
+    cb(data.results);
+  });
+}
+
+function renderSpotlight() {
+  loadTrendingWeek(function(results) {
+    spotlightSlides = dropHidden(results.filter(function(r){
       return (r.media_type === 'movie' || r.media_type === 'tv') && r.backdrop_path && r.overview;
     })).slice(0, 6);
     if (spotlightSlides.length === 0) return;
@@ -4641,10 +4779,45 @@ function tvHubCardHTML(item) {
     + '</div></div>';
 }
 
+function tvHubSearchInput() {
+  clearTimeout(tvHubSearchTimer);
+  tvHubSearchTimer = setTimeout(runTVHubSearch, 350);
+}
+
+function runTVHubSearch() {
+  var input = document.getElementById('tvHubSearchInput');
+  var grid = document.getElementById('tvHubGrid');
+  var btn = document.getElementById('tvHubMoreBtn');
+  if (!input || !grid) return;
+  var q = input.value.trim();
+  tvHubSearchQuery = q;
+  if (q.length < 2) {
+    if (tvHubPage !== 1 || grid.children.length === 0) {
+      tvHubPage = 1;
+      loadTVHubPage();
+    }
+    return;
+  }
+  if (btn) btn.style.display = 'none';
+  grid.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:12px 0">Searching…</div>';
+  tmdbFetch('/search/tv?query=' + encodeURIComponent(q) + '&include_adult=false').then(function(data) {
+    if (tvHubSearchQuery !== q) return;
+    if (!data || !data.results || !data.results.length) {
+      grid.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:12px 0">No TV shows found</div>';
+      return;
+    }
+    grid.innerHTML = '';
+    appendTVHubItems(dropHidden(data.results.filter(function(r) { return r.poster_path; })).slice(0, 24));
+  });
+}
+
 function openTVHub() {
   tvHubPage = 1;
   tvHubGenre = 0;
   tvHubShowId = null;
+  tvHubSearchQuery = '';
+  var tvSearch = document.getElementById('tvHubSearchInput');
+  if (tvSearch) tvSearch.value = '';
   resetTVHubGenreTabs();
   document.getElementById('tvHubList').classList.remove('hide');
   document.getElementById('tvHubPicker').classList.remove('on');
@@ -4787,14 +4960,10 @@ function loadTVHubEpisodes(showId, season) {
 }
 
 function quickPlayTVFromHub(id, s, e, title) {
-  var hist = getHistory().find(function(x) { return x.key === 'tv_' + id; });
-  var progress = 0;
-  if (hist && parseInt(hist.s, 10) === parseInt(s, 10) && parseInt(hist.e, 10) === parseInt(e, 10) && (hist.pct > 2 || hist.ts > 0)) {
-    progress = hist.ts || 0;
-  }
+  var hist = getHistoryEntry(id, 'tv');
   closeTVHub();
   closeDetail();
-  loadPlayer(id, 'tv', s, e, progress, title);
+  loadPlayer(id, 'tv', s, e, getResumeProgress(hist, 'tv', s, e), title);
 }
 
 function skeletonRow(containerId, count, top10) {
@@ -4814,9 +4983,9 @@ function skeletonRow(containerId, count, top10) {
 function fetchTrending() {
   if (!TMDB_KEY) { rowNotice('trendingRow', 'TMDB key required', 'Add your API key in Settings to load live rows.'); return; }
   skeletonRow('trendingRow', 10, true);
-  tmdbFetch('/trending/all/week').then(function(data) {
-    if (!data || !data.results) { rowFailed('trendingRow'); return; }
-    var items = data.results.filter(function(r){ return r.media_type === 'movie' || r.media_type === 'tv'; }).slice(0, 10);
+  loadTrendingWeek(function(results) {
+    if (!results) { rowFailed('trendingRow'); return; }
+    var items = results.filter(function(r){ return r.media_type === 'movie' || r.media_type === 'tv'; }).slice(0, 10);
     document.getElementById('trendCount').textContent = 'updated weekly';
     renderPosterRow(items, 'trendingRow', { numbered: true });
   });
@@ -4970,13 +5139,16 @@ function openDetail(id, type, title) {
     var castArr = d.credits && d.credits.cast ? d.credits.cast.slice(0, 12) : [];
     var backdrop = d.backdrop_path ? TMDB_IMG+'w1280'+d.backdrop_path : (d.poster_path ? TMDB_IMG+'w780'+d.poster_path : '');
     var faved = isFaved(id, type);
-    var hist = getHistory().find(function(x){ return x.key === type + '_' + id; });
+    var hist = getHistoryEntry(id, type);
     var match = matchScore(d.vote_average);
-    var playLabel = hist && hist.pct > 2
+    var canResume = hist && (type === 'tv'
+      ? ((hist.pct || 0) > 2 || (hist.ts || 0) > 0)
+      : ((hist.pct || 0) > 2 || (hist.ts || 0) > 60));
+    var playLabel = canResume
       ? (type === 'tv' ? 'Resume S' + hist.s + ' E' + hist.e : 'Resume')
       : (type === 'tv' ? 'Play S1 E1' : 'Play');
-    var playAction = hist && hist.pct > 2
-      ? 'loadPlayer('+id+',\''+type+'\','+hist.s+','+hist.e+','+hist.ts+',\''+esc(t)+'\');closeDetail()'
+    var playAction = canResume
+      ? 'loadPlayer('+id+',\''+type+'\','+hist.s+','+hist.e+','+getResumeProgress(hist, type, hist.s, hist.e)+',\''+esc(t)+'\');closeDetail()'
       : 'quickPlay('+id+',\''+type+'\',\''+esc(t)+'\');closeDetail()';
     // trailer (YouTube)
     var trailerKey = '';
@@ -5205,13 +5377,9 @@ function loadEpisodes(showId, title) {
 }
 
 function quickPlayTV(id, s, e, title) {
-  var hist = getHistory().find(function(x){ return x.key === 'tv_' + id; });
-  var progress = 0;
-  if (hist && parseInt(hist.s, 10) === parseInt(s, 10) && parseInt(hist.e, 10) === parseInt(e, 10) && (hist.pct > 2 || hist.ts > 0)) {
-    progress = hist.ts || 0;
-  }
+  var hist = getHistoryEntry(id, 'tv');
   closeDetail();
-  loadPlayer(id, 'tv', s, e, progress, title);
+  loadPlayer(id, 'tv', s, e, getResumeProgress(hist, 'tv', s, e), title);
 }
 
 function closeDetail() {
