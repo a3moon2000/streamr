@@ -330,6 +330,10 @@
     .subtitle-overlay.size-sm { font-size: clamp(14px, 3.5vw, 22px); }
     .subtitle-overlay.size-lg { font-size: clamp(22px, 5.5vw, 36px); }
     .subtitle-overlay.sub-off { display: none !important; }
+    body.player-mode {
+      overflow-anchor: none;
+      scroll-behavior: auto;
+    }
     body.player-mode header,
     body.player-mode .quicknav {
       display: none;
@@ -3204,9 +3208,9 @@ function loadPlayerEpisodes(showId, title, season, opts) {
     grid.innerHTML = renderEpisodeButtons(showId, season, d.episodes, title, function(id, s, ep, t) {
       return 'playPlayerEpisode(' + id + ',' + s + ',' + ep + ',\'' + esc(t) + '\')';
     });
-    if (!opts.skipScroll) {
+    if (!opts.skipScroll && !document.body.classList.contains('player-mode')) {
       var curBtn = grid.querySelector('.ep-btn.current');
-      if (curBtn) curBtn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+      if (curBtn) curBtn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
     }
   });
 }
@@ -3224,7 +3228,7 @@ function showPlayerTvPicker(id, title, s, e) {
   document.getElementById('playerTvPickTitle').textContent = title || 'TV Show';
   if (playerTvMeta.id === String(id) && playerTvMeta.seasons) {
     renderPlayerSeasonPills(id, playerTvMeta.title || title, s);
-    loadPlayerEpisodes(id, playerTvMeta.title || title, s);
+    loadPlayerEpisodes(id, playerTvMeta.title || title, s, { skipScroll: true });
     return;
   }
   playerTvMeta.id = String(id);
@@ -3240,7 +3244,7 @@ function showPlayerTvPicker(id, title, s, e) {
     if (!seasons.length) seasons = d.seasons || [];
     playerTvMeta.seasons = seasons;
     renderPlayerSeasonPills(id, playerTvMeta.title, s);
-    loadPlayerEpisodes(id, playerTvMeta.title, s);
+    loadPlayerEpisodes(id, playerTvMeta.title, s, { skipScroll: true });
   });
 }
 
@@ -3443,6 +3447,12 @@ function setColor(el) {
   currentColor = el.dataset.color;
 }
 
+function lockPlayerScrollTop() {
+  window.scrollTo(0, 0);
+  if (document.documentElement) document.documentElement.scrollTop = 0;
+  if (document.body) document.body.scrollTop = 0;
+}
+
 function sizeMobilePlayer() {
   if (!document.body.classList.contains('player-mode')) return;
   var inner = document.getElementById('playerInner');
@@ -3534,7 +3544,12 @@ function loadPlayer(id, type, s, e, progress, title) {
     hidePlayerTvPicker();
   }
 
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  lockPlayerScrollTop();
+  requestAnimationFrame(function() {
+    lockPlayerScrollTop();
+    requestAnimationFrame(lockPlayerScrollTop);
+  });
+  setTimeout(lockPlayerScrollTop, 80);
   if (progress && progress > 10) {
     saveHistory(id, type, s, e, title || (type + ' #' + id), progress, 0, 0);
   }
