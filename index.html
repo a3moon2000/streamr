@@ -1482,6 +1482,7 @@
     }
     .tvhub-show-meta { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
     .tvhub-ep-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 16px 0 10px; }
+    .tvhub-filters { margin-bottom: 18px; padding: 0; }
     .sec-pick-btn {
       margin-left: 12px; padding: 6px 14px; border-radius: 4px;
       border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08);
@@ -2179,6 +2180,10 @@
     <button class="genre-tab" onclick="filterGenre('tv', 35, this)">Comedy</button>
     <button class="genre-tab" onclick="filterGenre('tv', 10759, this)">Action</button>
     <button class="genre-tab" onclick="filterGenre('tv', 9648, this)">Mystery</button>
+    <button class="genre-tab" onclick="filterGenre('tv', 80, this)">Crime</button>
+    <button class="genre-tab" onclick="filterGenre('tv', 16, this)">Animation</button>
+    <button class="genre-tab" onclick="filterGenre('tv', 10749, this)">Romance</button>
+    <button class="genre-tab" onclick="filterGenre('tv', 99, this)">Documentary</button>
   </div>
   <div class="picks-grid" id="tvGrid"></div>
 
@@ -2228,6 +2233,18 @@
   </div>
   <div class="tvhub-body">
     <div class="tvhub-list" id="tvHubList">
+      <div class="genre-tabs tvhub-filters" id="tvHubGenreTabs">
+        <button class="genre-tab active" type="button" onclick="filterTVHubGenre(0, this)">All</button>
+        <button class="genre-tab" type="button" onclick="filterTVHubGenre(10765, this)">Sci-Fi</button>
+        <button class="genre-tab" type="button" onclick="filterTVHubGenre(18, this)">Drama</button>
+        <button class="genre-tab" type="button" onclick="filterTVHubGenre(35, this)">Comedy</button>
+        <button class="genre-tab" type="button" onclick="filterTVHubGenre(10759, this)">Action</button>
+        <button class="genre-tab" type="button" onclick="filterTVHubGenre(9648, this)">Mystery</button>
+        <button class="genre-tab" type="button" onclick="filterTVHubGenre(80, this)">Crime</button>
+        <button class="genre-tab" type="button" onclick="filterTVHubGenre(16, this)">Animation</button>
+        <button class="genre-tab" type="button" onclick="filterTVHubGenre(10749, this)">Romance</button>
+        <button class="genre-tab" type="button" onclick="filterTVHubGenre(99, this)">Documentary</button>
+      </div>
       <div class="browse-grid" id="tvHubGrid"></div>
       <div class="browse-more">
         <button class="browse-more-btn" id="tvHubMoreBtn" type="button" onclick="loadTVHubPage()">Load More</button>
@@ -2334,7 +2351,7 @@ var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
 var playerLoadTimer = null, playerGotProgress = false, playerReadyMarked = false, playerSourceFailCount = 0, playerAutoFallback = false;
 var playerIdleTimer = null, subtitlesVisible = true, subtitleSizeIdx = 1;
-var tvHubPage = 1, tvHubShowId = null, tvHubShowTitle = '';
+var tvHubPage = 1, tvHubShowId = null, tvHubShowTitle = '', tvHubGenre = 0;
 var prefetchDetailCache = {};
 
 var GRAD = [
@@ -4333,7 +4350,19 @@ function closeBrowse() {
 }
 
 /* ── TV Hub (season / episode picker) ─────────────── */
-var tvHubPage = 1, tvHubShowId = null, tvHubShowTitle = '';
+function resetTVHubGenreTabs() {
+  document.querySelectorAll('#tvHubGenreTabs .genre-tab').forEach(function(t, i) {
+    t.classList.toggle('active', i === 0);
+  });
+}
+
+function filterTVHubGenre(genreId, btn) {
+  tvHubGenre = genreId;
+  document.querySelectorAll('#tvHubGenreTabs .genre-tab').forEach(function(t) { t.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  tvHubPage = 1;
+  loadTVHubPage();
+}
 
 function tvHubCardHTML(item) {
   var title = item.name || item.title || '';
@@ -4353,7 +4382,9 @@ function tvHubCardHTML(item) {
 
 function openTVHub() {
   tvHubPage = 1;
+  tvHubGenre = 0;
   tvHubShowId = null;
+  resetTVHubGenreTabs();
   document.getElementById('tvHubList').classList.remove('hide');
   document.getElementById('tvHubPicker').classList.remove('on');
   document.getElementById('tvHubGrid').innerHTML = '';
@@ -4395,7 +4426,9 @@ function appendTVHubItems(items) {
 
 function fetchTVHubDiscover() {
   var btn = document.getElementById('tvHubMoreBtn');
-  tmdbFetch('/discover/tv?sort_by=popularity.desc&page=' + tvHubPage).then(function(data) {
+  var q = 'sort_by=popularity.desc&page=' + tvHubPage + '&vote_count.gte=50';
+  if (tvHubGenre) q = 'with_genres=' + tvHubGenre + '&' + q;
+  tmdbFetch('/discover/tv?' + q).then(function(data) {
     if (!data || !data.results) {
       if (btn) { btn.disabled = false; btn.textContent = 'Load More'; btn.style.display = 'none'; }
       return;
@@ -4413,15 +4446,23 @@ function fetchTVHubDiscover() {
 
 function loadTVHubPage() {
   var btn = document.getElementById('tvHubMoreBtn');
+  var grid = document.getElementById('tvHubGrid');
   if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; btn.style.display = ''; }
   if (tvHubPage === 1) {
-    document.getElementById('tvHubGrid').innerHTML = '';
-    var curated = TV.map(function(x) { return { id: x.id, title: x.title, year: x.year, type: 'tv', media_type: 'tv' }; });
-    hydrateCuratedItems(curated).then(function(items) {
-      appendTVHubItems(dropHidden(items));
-      tvHubPage++;
-      fetchTVHubDiscover();
-    });
+    grid.innerHTML = '';
+    for (var i = 0; i < 12; i++) grid.insertAdjacentHTML('beforeend', '<div class="skel skel-card" style="aspect-ratio:2/3;border-radius:var(--rl)"></div>');
+    if (!tvHubGenre) {
+      var curated = TV.map(function(x) { return { id: x.id, title: x.title, year: x.year, type: 'tv', media_type: 'tv' }; });
+      hydrateCuratedItems(curated).then(function(items) {
+        grid.innerHTML = '';
+        appendTVHubItems(dropHidden(items));
+        tvHubPage++;
+        fetchTVHubDiscover();
+      });
+      return;
+    }
+    grid.innerHTML = '';
+    fetchTVHubDiscover();
     return;
   }
   fetchTVHubDiscover();
