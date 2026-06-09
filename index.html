@@ -3661,8 +3661,12 @@ function loadPlayer(id, type, s, e, progress, title) {
   // (allow-scripts + allow-same-origin) but CANNOT open pop-under ad pages, redirect the
   // top window to ad/notification sites, or hijack taps via overlay links. Omitting
   // allow-popups and allow-top-navigation neutralizes all three without breaking playback.
-  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
-  iframe.setAttribute('referrerpolicy', 'no-referrer');
+  // VidFast detects and refuses to run sandboxed (and renders its own subtitles), so it is
+  // exempt; the ad-heavy fallbacks (Cinezo / 2Embed) stay sandboxed.
+  if (currentPlayerSource !== 'vidfast') {
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+    iframe.setAttribute('referrerpolicy', 'no-referrer');
+  }
   iframe.src = url;
   iframe.setAttribute('frameborder', '0');
   iframe.setAttribute('allowfullscreen', 'true');
