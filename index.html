@@ -382,6 +382,21 @@
       backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
     }
     body.css-fs .css-fs-exit { display: flex; }
+    /* Always-visible fullscreen button on the video (the subtitle-safe one). */
+    .player-wrap { position: relative; }
+    .player-fs-fab {
+      position: absolute; top: 10px; right: 10px; z-index: 6;
+      width: 44px; height: 44px; border-radius: 10px;
+      background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.28);
+      color: #fff; display: none; align-items: center; justify-content: center;
+      cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      transition: background 150ms, transform 120ms;
+    }
+    .player-wrap.open .player-fs-fab { display: flex; }
+    .player-fs-fab:hover { background: rgba(0,0,0,0.78); }
+    .player-fs-fab:active { transform: scale(0.92); }
+    .player-fs-fab svg { width: 20px; height: 20px; fill: currentColor; }
+    body.css-fs .player-fs-fab { display: none !important; }
     body.player-mode {
       overflow-anchor: none;
       scroll-behavior: auto;
@@ -2005,6 +2020,9 @@
   </div>
   <div class="player-wrap" id="playerWrap">
     <div class="player-inner" id="playerInner"></div>
+    <button class="player-fs-fab" type="button" onclick="togglePlayerFullscreen()" title="Fullscreen (keeps subtitles)" aria-label="Fullscreen">
+      <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm12 0h-2v3h-3v2h5v-5zM7 3v2h3v3h2V5h5V3H7zm12 10h-2V7h-3V5h5v8z"/></svg>
+    </button>
   </div>
   <div class="player-dock" id="playerDock">
     <div class="dock-progress"><div class="dock-progress-fill" id="dockProgFill"></div></div>
