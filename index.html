@@ -361,6 +361,27 @@
     #playerInner:-webkit-full-screen .subtitle-overlay.size-sm { font-size: clamp(20px, 2.6vw, 34px); }
     #playerInner:fullscreen .subtitle-overlay.size-lg,
     #playerInner:-webkit-full-screen .subtitle-overlay.size-lg { font-size: clamp(28px, 4vw, 56px); }
+    /* iOS pseudo-fullscreen: real element-fullscreen is unsupported on iPhone, so fill the
+       viewport with CSS instead. This keeps the parent-page subtitle overlay on screen —
+       Apple's native iframe-video fullscreen cannot show it. */
+    body.css-fs { overflow: hidden; }
+    body.css-fs .player-inner {
+      position: fixed !important; inset: 0 !important; z-index: 100000;
+      width: 100vw !important; height: 100dvh !important; min-height: 0 !important; padding-top: 0 !important;
+    }
+    body.css-fs .player-inner iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
+    body.css-fs .player-inner .subtitle-overlay {
+      z-index: 100001; bottom: clamp(28px, 8vh, 90px); font-size: clamp(20px, 4.6vw, 34px);
+    }
+    .css-fs-exit {
+      display: none; position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 12px); right: 14px;
+      z-index: 100002; width: 40px; height: 40px; border-radius: 50%;
+      background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.25); color: #fff;
+      align-items: center; justify-content: center; font-size: 20px; line-height: 1; cursor: pointer;
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    }
+    body.css-fs .css-fs-exit { display: flex; }
     body.player-mode {
       overflow-anchor: none;
       scroll-behavior: auto;
@@ -3415,12 +3436,33 @@ function updateDockProgress(current, duration, pct) {
   if (time) time.textContent = fmt(current) + ' / ' + fmt(duration);
 }
 
+function ensureCssFsExit() {
+  var b = document.getElementById('cssFsExit');
+  if (!b) {
+    b = document.createElement('button');
+    b.id = 'cssFsExit'; b.className = 'css-fs-exit'; b.type = 'button';
+    b.setAttribute('aria-label', 'Exit fullscreen'); b.innerHTML = '✕';
+    b.onclick = function() { document.body.classList.remove('css-fs'); };
+    document.body.appendChild(b);
+  }
+  return b;
+}
+
+function toggleCssFullscreen() {
+  ensureCssFsExit();
+  document.body.classList.toggle('css-fs');
+  if (typeof bumpPlayerIdle === 'function') bumpPlayerIdle();
+}
+
 function togglePlayerFullscreen() {
   var el = document.getElementById('playerInner');
   if (!el) return;
+  var req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  // iPhone (and any browser without element-fullscreen) → CSS fill so subtitles stay visible.
+  if (!req) { toggleCssFullscreen(); return; }
+  if (document.body.classList.contains('css-fs')) { document.body.classList.remove('css-fs'); return; }
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    var req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-    if (req) req.call(el).catch(function() { showToast('Fullscreen unavailable'); });
+    req.call(el).catch(function() { toggleCssFullscreen(); });
   } else {
     var exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
     if (exit) exit.call(document);
@@ -3702,6 +3744,7 @@ function goHome() {
   document.getElementById('playerDock').classList.remove('on');
   hidePlayerTvPicker();
   document.body.classList.remove('player-mode');
+  document.body.classList.remove('css-fs');
   document.getElementById('heroSection').style.display = '';
   document.getElementById('playerTitleBar').classList.remove('on');
   document.getElementById('progStrip').classList.remove('on');
