@@ -346,7 +346,9 @@
     .subtitle-overlay.sub-off { display: none !important; }
     /* Keep subtitles visible and well-placed when the container is fullscreened. */
     #playerInner:fullscreen, #playerInner:-webkit-full-screen {
-      width: 100vw; height: 100vh; background: #000;
+      width: 100vw; height: 100vh; max-height: 100dvh;
+      padding-top: 0 !important; min-height: 0 !important;
+      overflow: visible; background: #000;
     }
     #playerInner:fullscreen iframe, #playerInner:-webkit-full-screen iframe {
       position: absolute; inset: 0; width: 100%; height: 100%;
@@ -2020,7 +2022,7 @@
   </div>
   <div class="player-wrap" id="playerWrap">
     <div class="player-inner" id="playerInner"></div>
-    <button class="player-fs-fab" type="button" onclick="togglePlayerFullscreen()" title="Fullscreen (keeps subtitles)" aria-label="Fullscreen">
+    <button class="player-fs-fab" type="button" onclick="togglePlayerFullscreen()" title="Fullscreen with subtitles (use this, not the player button)" aria-label="Fullscreen with subtitles">
       <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm12 0h-2v3h-3v2h5v-5zM7 3v2h3v3h2V5h5V3H7zm12 10h-2V7h-3V5h5v8z"/></svg>
     </button>
   </div>
@@ -3506,22 +3508,30 @@ function toggleCssFullscreen() {
   if (typeof bumpPlayerIdle === 'function') bumpPlayerIdle();
 }
 
+function enterCinezoFullscreen() {
+  var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+  var exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+  if (fsEl && exit) {
+    var p = Promise.resolve(exit.call(document));
+    if (p && p.then) p.then(function() { toggleCssFullscreen(); });
+    else toggleCssFullscreen();
+    return;
+  }
+  toggleCssFullscreen();
+}
+
 function togglePlayerFullscreen() {
   var inner = document.getElementById('playerInner');
   var iframe = getPlayerIframe();
   if (!inner) return;
+  if (document.body.classList.contains('css-fs')) { document.body.classList.remove('css-fs'); return; }
+
+  // Cinezo subs live on the parent page — always use CSS fill so the overlay stays visible.
+  if (currentPlayerSource === 'cinezo') { enterCinezoFullscreen(); return; }
+
   var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
   var exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
   if (fsEl && exit) { exit.call(document); return; }
-  if (document.body.classList.contains('css-fs')) { document.body.classList.remove('css-fs'); return; }
-
-  // Cinezo subs are a parent-page overlay — fullscreen the container (or CSS fill on mobile).
-  if (currentPlayerSource === 'cinezo') {
-    var innerReq = inner.requestFullscreen || inner.webkitRequestFullscreen || inner.msRequestFullscreen;
-    if (isMobileDevice() || !innerReq) { toggleCssFullscreen(); return; }
-    innerReq.call(inner).catch(function() { toggleCssFullscreen(); });
-    return;
-  }
 
   // VidLink subs render inside the iframe — fullscreen the iframe, never the container.
   var target = iframe || inner;
@@ -3537,30 +3547,14 @@ function togglePlayerFullscreen() {
 // switch we leave their fullscreen untouched (no regression). Note: iOS Safari uses the
 // native video player for cross-origin iframes and cannot show an external overlay.
 function keepSubtitlesInFullscreen() {
-  // Only Cinezo uses a parent-page overlay. VidLink subs are inside the iframe — hijacking
-  // fullscreen to #playerInner would hide them (same bug that broke VidFast fullscreen).
+  // Only Cinezo uses a parent-page overlay. If the embed fullscreens itself, swap to CSS fill.
   if (currentPlayerSource !== 'cinezo') return;
+  if (document.body.classList.contains('css-fs')) return;
   var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
   var iframe = getPlayerIframe();
-  var inner = document.getElementById('playerInner');
-  if (!fsEl || !iframe || !inner) return;
-  if (fsEl !== iframe || fsEl === inner) return;
-  var exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
-  var req = inner.requestFullscreen || inner.webkitRequestFullscreen;
-  function cssFallback() {
-    if (currentPlayerSource !== 'cinezo') return;
-    document.body.classList.add('css-fs');
-    ensureCssFsExit();
-  }
-  if (!exit || !req) { cssFallback(); return; }
-  try {
-    var p = Promise.resolve(exit.call(document));
-    if (p && p.then) {
-      p.then(function() { return req.call(inner); }).catch(cssFallback);
-    } else {
-      req.call(inner);
-    }
-  } catch (e) { cssFallback(); }
+  if (!fsEl || !iframe) return;
+  if (fsEl !== iframe) return;
+  enterCinezoFullscreen();
 }
 document.addEventListener('fullscreenchange', keepSubtitlesInFullscreen);
 document.addEventListener('webkitfullscreenchange', keepSubtitlesInFullscreen);
