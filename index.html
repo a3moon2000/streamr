@@ -2085,7 +2085,8 @@
         <div class="pref-group">
           <span class="pref-label">Source</span>
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value, true)">
-            <option value="cinezo" selected>Cinezo</option>
+            <option value="vidfast" selected>VidFast (subtitles)</option>
+            <option value="cinezo">Cinezo</option>
             <option value="2embed">2Embed (backup)</option>
           </select>
         </div>
@@ -2468,10 +2469,11 @@
     <div class="modal-field">
       <label>Default Player</label>
       <select class="pref-select" id="settingsPlayerSource" style="width:100%;max-width:none">
-        <option value="cinezo">Cinezo (recommended)</option>
+        <option value="vidfast">VidFast (built-in Persian subtitles)</option>
+        <option value="cinezo">Cinezo</option>
         <option value="2embed">2Embed (backup)</option>
       </select>
-      <div class="modal-hint">Free streams include short in-player ad breaks (normal). On mobile, use <strong>Brave browser</strong> with Shields ON — the installed home-screen app cannot block embed popups. Tap ↻ or the server icon inside the player to try another source.</div>
+      <div class="modal-hint">VidFast shows Persian subtitles inside the player (tap the speech-bubble / CC icon) and they stay on in fullscreen, including on iPhone. Cinezo and 2Embed are fallbacks. Free streams include short in-player ad breaks (normal). Tap ↻ or the server icon inside the player to switch source.</div>
     </div>
     <div class="modal-field">
       <label>Hide Genres</label>
@@ -2492,10 +2494,10 @@
 </div>
 
 <script>
-var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'cinezo', currentSubtitleLang = 'fa', searchTimeout = null, searchFocusIdx = -1;
+var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'vidfast', currentSubtitleLang = 'fa', searchTimeout = null, searchFocusIdx = -1;
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
-var PLAYER_SOURCES = ['cinezo', '2embed'];
+var PLAYER_SOURCES = ['vidfast', 'cinezo', '2embed'];
 var CINEZO_SERVER_CYCLE = [''];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
@@ -3000,9 +3002,10 @@ function normalizePlayerSource(source) {
 }
 
 function getPlayerSourceLabel(source) {
+  if (source === 'vidfast') return 'VidFast';
   if (source === 'cinezo') return 'Cinezo';
   if (source === '2embed') return '2Embed';
-  return 'Cinezo';
+  return 'VidFast';
 }
 
 function isMobileDevice() {
@@ -3022,6 +3025,20 @@ function buildUrl(id, type, s, e, progress, forceAutoplay) {
   if (sourceEl && sourceEl.value !== source) sourceEl.value = source;
   var mobile = isMobileDevice();
   var autoOn = !mobile && (forceAutoplay || document.getElementById('autoPlay').checked);
+
+  if (source === 'vidfast') {
+    // VidFast renders subtitles INSIDE its own player, so Persian (sub=fa) survives every
+    // fullscreen incl. iOS native — no parent-page overlay needed.
+    var vfBase = type === 'movie'
+      ? 'https://vidfast.pro/movie/' + id
+      : 'https://vidfast.pro/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
+    var vf = new URLSearchParams();
+    vf.set('sub', currentSubtitleLang || 'fa');
+    vf.set('autoPlay', autoOn ? 'true' : 'false');
+    vf.set('theme', currentColor);
+    if (progress && progress > 10) vf.set('startAt', Math.floor(progress));
+    return vfBase + '?' + vf.toString();
+  }
 
   if (source === 'cinezo') {
     var czBase = type === 'movie' ? 'https://player.cinezo.live/embed/movie/' + id : 'https://player.cinezo.live/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
@@ -3075,20 +3092,13 @@ function markPlayerReady(statusText) {
 }
 
 function setPlayerSource(source, manual) {
-  source = normalizePlayerSource(source || 'cinezo');
-  if (manual && source === '2embed') {
-    currentPlayerSource = '2embed';
-    try {
-      localStorage.setItem('streamr_player_source', '2embed');
-      localStorage.setItem('streamr_manual_2embed', '1');
-    } catch(e) {}
-  } else {
-    currentPlayerSource = 'cinezo';
-    try {
-      localStorage.setItem('streamr_player_source', 'cinezo');
-      localStorage.removeItem('streamr_manual_2embed');
-    } catch(e) {}
-  }
+  source = normalizePlayerSource(source || 'vidfast');
+  currentPlayerSource = source;
+  try {
+    localStorage.setItem('streamr_player_source', source);
+    if (manual && source === '2embed') localStorage.setItem('streamr_manual_2embed', '1');
+    else localStorage.removeItem('streamr_manual_2embed');
+  } catch(e) {}
   var sourceEl = document.getElementById('playerSource');
   if (sourceEl && sourceEl.value !== currentPlayerSource) sourceEl.value = currentPlayerSource;
   var settingsSrc = document.getElementById('settingsPlayerSource');
@@ -3111,19 +3121,12 @@ function getCinezoServer() {
 }
 
 function cyclePlayerSource() {
-  if (!lastPlayerRequest) {
-    showToast(currentPlayerSource === 'cinezo' ? 'Backup: 2Embed' : 'Primary: Cinezo');
-    return;
-  }
-  if (currentPlayerSource === 'cinezo') {
-    setPlayerSource('2embed', true);
-    showToast('Trying backup player (2Embed)…');
-  } else {
-    try { localStorage.removeItem('streamr_cinezo_server'); } catch (e) {}
-    setPlayerSource('cinezo');
-    showToast('Back to Cinezo…');
-  }
-  loadPlayer(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e, lastPlayerRequest.progress, lastPlayerRequest.title);
+  var idx = PLAYER_SOURCES.indexOf(currentPlayerSource);
+  var next = PLAYER_SOURCES[(idx + 1) % PLAYER_SOURCES.length];
+  if (next === 'cinezo') { try { localStorage.removeItem('streamr_cinezo_server'); } catch (e) {} }
+  if (!lastPlayerRequest) { showToast('Player: ' + getPlayerSourceLabel(next)); }
+  setPlayerSource(next, true);
+  showToast('Player: ' + getPlayerSourceLabel(next));
 }
 
 function maybeShowQualityTip() {
@@ -3405,11 +3408,13 @@ function armPlayerLoadWatch() {
   clearPlayerLoadWatch();
   playerLoadTimer = setTimeout(function() {
     if (playerGotProgress) return;
-    if (currentPlayerSource === 'cinezo' && lastPlayerRequest && playerSourceFailCount < 1) {
+    if (lastPlayerRequest && playerSourceFailCount < 1) {
+      var idx = PLAYER_SOURCES.indexOf(currentPlayerSource);
+      var next = PLAYER_SOURCES[(idx + 1) % PLAYER_SOURCES.length];
+      var prevLabel = getPlayerSourceLabel(currentPlayerSource);
       playerSourceFailCount++;
-      setPlayerSource('2embed', true);
-      showToast('Cinezo slow — trying backup player…');
-      loadPlayer(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e, lastPlayerRequest.progress, lastPlayerRequest.title);
+      setPlayerSource(next, true);
+      showToast(prevLabel + ' slow — trying ' + getPlayerSourceLabel(next) + '…');
       return;
     }
     revealPlayerEmbed();
@@ -4131,6 +4136,12 @@ function loadFarsiFromSubdl(id, type, season, episode) {
 
 function loadExternalFarsiSubtitles(id, type, season, episode) {
   if (currentSubtitleLang !== 'fa') return;
+  // VidFast renders Persian subtitles inside its own player — don't double them with our overlay.
+  if (currentPlayerSource === 'vidfast') {
+    externalSubtitles = [];
+    setSubtitleStatus('Persian subtitles are in the player — tap the CC / speech-bubble icon.');
+    return;
+  }
   externalSubtitles = [];
   setSubtitleStatus('Searching Persian subtitles…');
   loadFarsiFromOpenSubtitles(id, type, season, episode)
@@ -4580,8 +4591,10 @@ function initPlayerPrefs() {
     localStorage.removeItem('streamr_cinezo_server');
     var src = localStorage.getItem('streamr_player_source');
     var manual2 = localStorage.getItem('streamr_manual_2embed');
+    // VidFast is the default (built-in Persian subtitles, fullscreen-safe). Only honour an
+    // explicit pinned 2Embed backup; legacy Cinezo saves migrate to VidFast.
     if (src === '2embed' && manual2 === '1') setPlayerSource('2embed', true);
-    else setPlayerSource('cinezo');
+    else setPlayerSource('vidfast');
     var ap = localStorage.getItem('streamr_autoplay');
     if (ap !== null) document.getElementById('autoPlay').checked = ap === '1';
     var ep = localStorage.getItem('streamr_epsel');
