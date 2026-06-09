@@ -2478,7 +2478,7 @@
         <option value="cinezo">Cinezo (overlay subs)</option>
         <option value="2embed">2Embed (backup)</option>
       </select>
-      <div class="modal-hint"><strong>VidLink</strong> + Subtitle helper URL renders Persian inside the player (fullscreen-safe on iPhone). <strong>Cinezo</strong> uses the in-app overlay — use the app's ⛶ button for fullscreen with subtitles. Tap ↻ to switch source.</div>
+      <div class="modal-hint"><strong>Cinezo</strong> is the reliable default (overlay Persian subs — use ⛶ for fullscreen). <strong>VidLink</strong> is experimental and may hang; if it does, Streamr auto-switches to Cinezo after ~8s.</div>
     </div>
     <div class="modal-field">
       <label>Hide Genres</label>
@@ -2504,7 +2504,7 @@ var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var SUB_WORKER_DEFAULT = 'https://streamr-subs.akila-attribution.workers.dev';
 var SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
-var PLAYER_SOURCES = ['vidlink', 'cinezo', '2embed'];
+var PLAYER_SOURCES = ['cinezo', 'vidlink', '2embed'];
 var CINEZO_SERVER_CYCLE = [''];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
@@ -3005,8 +3005,8 @@ document.addEventListener('click', function(e) {
 /* Player */
 function normalizePlayerSource(source) {
   if (source === 'vidking') source = '2embed';
-  if (source === 'vidfast') source = SUB_WORKER ? 'vidlink' : 'cinezo';
-  return PLAYER_SOURCES.indexOf(source) >= 0 ? source : (SUB_WORKER ? 'vidlink' : 'cinezo');
+  if (source === 'vidfast') source = 'cinezo';
+  return PLAYER_SOURCES.indexOf(source) >= 0 ? source : 'cinezo';
 }
 
 function getPlayerSourceLabel(source) {
@@ -3060,6 +3060,9 @@ function buildUrl(id, type, s, e, progress, forceAutoplay) {
     vl.set('autoplay', autoOn ? 'true' : 'false');
     vl.set('primaryColor', currentColor);
     vl.set('title', 'true');
+    // Attach sub_file only when explicitly requested — on first load VidLink often hangs
+    // on "Fetching Data" while probing an external subtitle URL.
+    if (forceAutoplay !== 'withSubs') return vlBase + '?' + vl.toString();
     var subUrl = buildSubWorkerUrl(id, type, s, e);
     if (subUrl) { vl.set('sub_file', subUrl); vl.set('sub_label', 'فارسی'); }
     return vlBase + '?' + vl.toString();
@@ -3117,7 +3120,7 @@ function markPlayerReady(statusText) {
 }
 
 function setPlayerSource(source, manual) {
-  source = normalizePlayerSource(source || (SUB_WORKER ? 'vidlink' : 'cinezo'));
+  source = normalizePlayerSource(source || 'cinezo');
   currentPlayerSource = source;
   try {
     localStorage.setItem('streamr_player_source', source);
@@ -3431,6 +3434,7 @@ function retryPlayer() {
 
 function armPlayerLoadWatch() {
   clearPlayerLoadWatch();
+  var failMs = currentPlayerSource === 'vidlink' ? 8000 : 18000;
   playerLoadTimer = setTimeout(function() {
     if (playerGotProgress) return;
     if (lastPlayerRequest && playerSourceFailCount < 1) {
@@ -3452,7 +3456,7 @@ function armPlayerLoadWatch() {
       if (retry) retry.style.display = '';
     }
     setDockStatus('Having trouble — tap Retry or ↻', true);
-  }, 18000);
+  }, failMs);
 }
 
 function bumpPlayerIdle() {
@@ -3995,7 +3999,7 @@ function refreshVidlinkSubFile() {
   if (currentPlayerSource !== 'vidlink' || !lastPlayerRequest) return;
   var iframe = getPlayerIframe();
   if (!iframe) return;
-  var url = buildUrl(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e, lastPlayerRequest.progress, false);
+  var url = buildUrl(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e, lastPlayerRequest.progress, 'withSubs');
   iframe.src = url + (url.indexOf('?') > -1 ? '&' : '?') + '_subts=' + Date.now();
 }
 
@@ -4665,7 +4669,6 @@ function saveSettings() {
   else localStorage.removeItem('streamr_sub_worker');
   var srcIn = document.getElementById('settingsPlayerSource');
   if (srcIn) setPlayerSource(srcIn.value, true);
-  if (SUB_WORKER && normalizePlayerSource(srcIn ? srcIn.value : '') === 'cinezo') setPlayerSource('vidlink', true);
   var settingsEp = document.getElementById('settingsEpSel');
   var epSel = document.getElementById('epSel');
   if (settingsEp && epSel) {
@@ -4692,11 +4695,10 @@ function initPlayerPrefs() {
     var src = localStorage.getItem('streamr_player_source');
     var manual2 = localStorage.getItem('streamr_manual_2embed');
     SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
-    // Default: VidLink when a Subtitle helper Worker is configured, otherwise Cinezo overlay.
+    // Cinezo is the reliable default. VidLink often hangs — only honour explicit 2Embed pin.
     if (src === '2embed' && manual2 === '1') setPlayerSource('2embed', true);
-    else if (src === 'cinezo') setPlayerSource('cinezo', true);
-    else if (src === 'vidlink' && SUB_WORKER) setPlayerSource('vidlink', true);
-    else setPlayerSource(SUB_WORKER ? 'vidlink' : 'cinezo');
+    else if (src === 'vidlink') setPlayerSource('cinezo');
+    else setPlayerSource('cinezo');
     var ap = localStorage.getItem('streamr_autoplay');
     if (ap !== null) document.getElementById('autoPlay').checked = ap === '1';
     var ep = localStorage.getItem('streamr_epsel');
