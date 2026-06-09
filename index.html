@@ -4628,7 +4628,7 @@ function saveSettings() {
   else localStorage.removeItem('streamr_sub_worker');
   var srcIn = document.getElementById('settingsPlayerSource');
   if (srcIn) setPlayerSource(srcIn.value, true);
-  else if (SUB_WORKER) setPlayerSource('vidlink', true);
+  if (SUB_WORKER && normalizePlayerSource(srcIn ? srcIn.value : '') === 'cinezo') setPlayerSource('vidlink', true);
   var settingsEp = document.getElementById('settingsEpSel');
   var epSel = document.getElementById('epSel');
   if (settingsEp && epSel) {
