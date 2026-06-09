@@ -1056,6 +1056,13 @@
       backdrop-filter: blur(4px); display: none;
     }
     .pick-rating.on { display: block; }
+    .cam-badge {
+      position: absolute; top: 8px; right: 8px;
+      background: oklch(0% 0 0 / 0.7); color: #f5a623;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+      padding: 2px 6px; border-radius: 4px; font-family: var(--mono);
+      backdrop-filter: blur(4px); border: 1px solid rgba(245,166,35,0.4);
+    }
     .pick-info { padding: 8px 2px 0; }
     .pick-title {
       font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 2px;
@@ -2576,6 +2583,21 @@ function isNewRelease(item) {
   var rel = new Date(d).getTime();
   if (isNaN(rel)) return false;
   return (Date.now() - rel) < 45 * 86400000;
+}
+// Cam-quality heuristic: a movie still inside its theatrical window has not had a
+// digital/home release yet, so realistically only a cam/CINEMA-quality rip exists.
+// We can't read the actual source quality, so this is an honest estimate from the
+// release date, not a guarantee. ~10 days pre-release through ~60 days after
+// (typical theatrical-to-digital gap). TV shows never get cam rips.
+function isCamQuality(item) {
+  var type = item.media_type || item.type || 'movie';
+  if (type !== 'movie') return false;
+  var d = item.release_date;
+  if (!d) return false;
+  var rel = new Date(d).getTime();
+  if (isNaN(rel)) return false;
+  var age = Date.now() - rel;
+  return age > -10 * 86400000 && age < 60 * 86400000;
 }
 function matchScore(va) {
   if (!va || va < 3) return '';
@@ -4616,10 +4638,12 @@ function posterCardHTML(item, i, opts) {
     : '';
   var rating = item.vote_average ? '★ ' + item.vote_average.toFixed(1) : (item.rating ? '★ '+item.rating : '');
   var badge = isNewRelease(item) ? '<div class="pick-badge new">NEW</div>' : '<div class="pick-badge">'+type.toUpperCase()+'</div>';
+  var camBadge = isCamQuality(item) ? '<div class="cam-badge" title="In theaters now — likely only cam/CINEMA quality available. HD comes after the digital release.">CAM</div>' : '';
   var posterBlock = '<div class="pick-poster" style="background:var(--surface2)">'
     + '<span class="poster-icon" style="font-size:28px">&#127909;</span>'
     + poster
     + badge
+    + camBadge
     + hideBtnHTML(item.id, type, title)
     + '</div>';
   var infoBlock = '<div class="trending-info"><div class="trending-title">'+title+'</div>'
