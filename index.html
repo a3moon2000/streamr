@@ -1994,7 +1994,7 @@
       </button>
     </div>
     <div class="dock-row dock-sub" id="dockSubRow">
-      <span class="dock-sub-status" id="subtitleStatus">Upload Farsi .srt or add SubDL key in Settings</span>
+      <span class="dock-sub-status" id="subtitleStatus">Persian subtitles load automatically when you play</span>
       <input type="file" id="subUpload" accept=".srt,.vtt" hidden onchange="handleSubtitleUpload(this)">
       <button class="dock-chip" id="subToggleBtn" type="button" onclick="toggleSubtitlesVisible()" aria-label="Toggle subtitles">Subs on</button>
       <button class="dock-chip" id="subSizeBtn" type="button" onclick="cycleSubtitleSize()" aria-label="Subtitle size">Size M</button>
@@ -3767,7 +3767,7 @@ function resetSubtitleClock(keepStatus) {
     el.querySelector('span').textContent = '';
   }
   refreshSubtitleButtons();
-  if (!keepStatus) setSubtitleStatus('Upload Farsi .srt or add SubDL key');
+  if (!keepStatus) setSubtitleStatus('Persian subtitles load automatically when you play');
 }
 
 function getSubtitleClockSeconds() {
@@ -3841,8 +3841,8 @@ function loadSubtitleText(text, label) {
   externalSubtitles = parsed;
   resetSubtitleClock(true);
   refreshSubtitleButtons();
-  setSubtitleStatus((label || 'Farsi subtitles') + ' loaded. Press Start subs when the movie starts.');
-  showSubtitleHint('Farsi subtitles loaded. Press Start subs.');
+  setSubtitleStatus((label || 'Persian subtitles') + ' loaded — they sync to the video automatically. If they drift, use −2s / +2s, or press Start subs.');
+  showSubtitleHint('Persian subtitles loaded ✓');
 }
 
 function handleSubtitleUpload(input) {
@@ -3958,17 +3958,59 @@ function updateExternalSubtitle(seconds) {
   el.querySelector('span').textContent = text;
 }
 
-function loadExternalFarsiSubtitles(id, type, season, episode) {
-  if (currentSubtitleLang !== 'fa') return;
-  if (!SUBDL_KEY) {
-    setSubtitleStatus('Upload Farsi .srt or add SubDL key');
-    return;
+// Gunzip an ArrayBuffer if it carries the gzip magic (OpenSubtitles serves .gz).
+// Uses the browser-native DecompressionStream — no library needed.
+function gunzipBuffer(buf) {
+  var bytes = new Uint8Array(buf);
+  if (bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) {
+    if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot unzip subtitles');
+    var stream = new Response(buf).body.pipeThrough(new DecompressionStream('gzip'));
+    return new Response(stream).arrayBuffer();
   }
-  if (!window.JSZip) {
-    setSubtitleStatus('Subtitle unzipper did not load');
-    return;
+  return Promise.resolve(buf);
+}
+
+// Build the OpenSubtitles legacy-REST search path. Persian = sublanguageid "per".
+function osFarsiSearchUrl(imdb, type, season, episode) {
+  var digits = String(imdb).replace(/[^0-9]/g, '');
+  if (type === 'tv') {
+    return 'https://rest.opensubtitles.org/search/episode-' + (episode || 1) +
+           '/imdbid-' + digits + '/season-' + (season || 1) + '/sublanguageid-per';
   }
-  setSubtitleStatus('Loading Farsi subtitles...');
+  return 'https://rest.opensubtitles.org/search/imdbid-' + digits + '/sublanguageid-per';
+}
+
+// Primary Persian source: OpenSubtitles legacy REST. No API key, CORS-open, .gz SRT files.
+function loadFarsiFromOpenSubtitles(id, type, season, episode) {
+  return tmdbFetch('/' + (type === 'tv' ? 'tv' : 'movie') + '/' + id + '/external_ids')
+    .then(function(ext) {
+      var imdb = ext && ext.imdb_id;
+      if (!imdb) throw new Error('no-imdb');
+      return fetch(osFarsiSearchUrl(imdb, type, season, episode), {
+        headers: { 'X-User-Agent': 'Streamr v1' }
+      });
+    })
+    .then(function(r){ if (!r.ok) throw new Error('os-search'); return r.json(); })
+    .then(function(list) {
+      if (!list || !list.length) throw new Error('no-farsi');
+      list.sort(function(a, b) {
+        var af = (a.SubFormat || '').toLowerCase() === 'srt' ? 0 : 1;
+        var bf = (b.SubFormat || '').toLowerCase() === 'srt' ? 0 : 1;
+        if (af !== bf) return af - bf;
+        return (parseFloat(b.SubRating) || 0) - (parseFloat(a.SubRating) || 0) ||
+               (parseInt(b.SubDownloadsCnt, 10) || 0) - (parseInt(a.SubDownloadsCnt, 10) || 0);
+      });
+      var dl = list[0] && list[0].SubDownloadLink;
+      if (!dl) throw new Error('no-link');
+      return fetch(dl);
+    })
+    .then(function(r){ if (!r.ok) throw new Error('os-download'); return r.arrayBuffer(); })
+    .then(gunzipBuffer)
+    .then(decodeSubtitleBuffer);
+}
+
+// Fallback Persian source: SubDL (only used if the user added a free key in Settings).
+function loadFarsiFromSubdl(id, type, season, episode) {
   var params = new URLSearchParams();
   params.set('api_key', SUBDL_KEY);
   params.set('tmdb_id', id);
@@ -3980,22 +4022,36 @@ function loadExternalFarsiSubtitles(id, type, season, episode) {
     params.set('season_number', season || 1);
     params.set('episode_number', episode || 1);
   }
-  fetch('https://api.subdl.com/api/v1/subtitles?' + params.toString(), { headers: { Accept: 'application/json' } })
+  return fetch('https://api.subdl.com/api/v1/subtitles?' + params.toString(), { headers: { Accept: 'application/json' } })
     .then(function(r){ return r.json(); })
     .then(function(data) {
       var urls = collectSubdlDownloads(data, type, season, episode);
       if (!urls.length) throw new Error('No Farsi subtitles found');
       return fetch(withSubdlKey(urls[0])).then(function(r){ return r.arrayBuffer(); });
     })
-    .then(extractSubtitleText)
-    .then(function(text) {
-      loadSubtitleText(text, 'Farsi subtitles');
-    })
-    .catch(function(err) {
-      externalSubtitles = [];
-      resetSubtitleClock(true);
-      setSubtitleStatus(err.message || 'Farsi subtitles failed to load');
+    .then(extractSubtitleText);
+}
+
+function loadExternalFarsiSubtitles(id, type, season, episode) {
+  if (currentSubtitleLang !== 'fa') return;
+  externalSubtitles = [];
+  setSubtitleStatus('Searching Persian subtitles…');
+  loadFarsiFromOpenSubtitles(id, type, season, episode)
+    .then(function(text) { loadSubtitleText(text, 'Persian subtitles'); })
+    .catch(function() {
+      if (SUBDL_KEY && window.JSZip) {
+        return loadFarsiFromSubdl(id, type, season, episode)
+          .then(function(text) { loadSubtitleText(text, 'Persian subtitles'); })
+          .catch(function() { farsiSubtitlesUnavailable(); });
+      }
+      farsiSubtitlesUnavailable();
     });
+}
+
+function farsiSubtitlesUnavailable() {
+  externalSubtitles = [];
+  resetSubtitleClock(true);
+  setSubtitleStatus('No Persian subtitles found online. Tap "Find subs", then Upload .srt.');
 }
 
 /* Progress tracking */
