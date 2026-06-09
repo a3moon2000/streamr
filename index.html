@@ -3711,13 +3711,9 @@ function loadPlayer(id, type, s, e, progress, title) {
   armPlayerLoadWatch();
 
   var iframe = document.createElement('iframe');
-  // Ad hardening: sandbox the embed so provider scripts can still run/play the video
-  // (allow-scripts + allow-same-origin) but CANNOT open pop-under ad pages, redirect the
-  // top window to ad/notification sites, or hijack taps via overlay links. Omitting
-  // allow-popups and allow-top-navigation neutralizes all three without breaking playback.
-  // VidLink is exempt from sandbox (some players refuse to run sandboxed); Cinezo / 2Embed stay
-  // sandboxed to block pop-under ads.
-  if (currentPlayerSource !== 'vidlink') {
+  // Ad hardening: sandbox only Cinezo — 2Embed and VidLink detect sandbox and refuse to play
+  // ("sandbox block"). Cinezo tolerates a tight sandbox (no popups / top navigation).
+  if (currentPlayerSource === 'cinezo') {
     iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
     iframe.setAttribute('referrerpolicy', 'no-referrer');
   }
