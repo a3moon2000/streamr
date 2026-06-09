@@ -2457,7 +2457,7 @@
     <div class="modal-field">
       <label>Subtitle helper URL <span style="color:var(--muted);font-weight:400">(for VidLink Persian)</span></label>
       <input type="text" id="subWorkerInput" placeholder="https://streamr-subs.xxx.workers.dev">
-      <div class="modal-hint">Deploy the free Cloudflare Worker (see <strong>subtitle-worker</strong> folder) and paste its URL here. Enables Persian subtitles inside VidLink that stay on in fullscreen, including iPhone. Without this, Cinezo overlay subs are used.</div>
+      <div class="modal-hint">Pre-deployed at <strong>streamr-subs.akila-attribution.workers.dev</strong> (change only if self-hosting). Enables Persian subtitles inside VidLink that stay on in fullscreen, including iPhone.</div>
     </div>
     <div class="modal-field">
       <label>SubDL API Key <span style="color:var(--muted);font-weight:400">(optional)</span></label>
@@ -2501,7 +2501,8 @@
 <script>
 var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'cinezo', currentSubtitleLang = 'fa', searchTimeout = null, searchFocusIdx = -1;
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
-var SUB_WORKER = localStorage.getItem('streamr_sub_worker') || '';
+var SUB_WORKER_DEFAULT = 'https://streamr-subs.akila-attribution.workers.dev';
+var SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
 var PLAYER_SOURCES = ['vidlink', 'cinezo', '2embed'];
 var CINEZO_SERVER_CYCLE = [''];
@@ -3985,6 +3986,30 @@ function openFarsiSubtitleSearch() {
   setSubtitleStatus('Download a Persian .srt from SubDL, then tap Upload .srt here.');
 }
 
+function srtToVtt(srt) {
+  return 'WEBVTT\n\n' + String(srt || '').replace(/\r+/g, '')
+    .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+}
+
+function refreshVidlinkSubFile() {
+  if (currentPlayerSource !== 'vidlink' || !lastPlayerRequest) return;
+  var iframe = getPlayerIframe();
+  if (!iframe) return;
+  var url = buildUrl(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e, lastPlayerRequest.progress, false);
+  iframe.src = url + (url.indexOf('?') > -1 ? '&' : '?') + '_subts=' + Date.now();
+}
+
+function cacheSubtitleToWorker(rawSrt) {
+  if (!SUB_WORKER || !lastPlayerRequest || !rawSrt) return Promise.resolve();
+  var vtt = srtToVtt(rawSrt);
+  if (vtt.indexOf('-->') === -1) return Promise.resolve();
+  var url = buildSubWorkerUrl(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e);
+  if (!url) return Promise.resolve();
+  return fetch(url, { method: 'PUT', headers: { 'Content-Type': 'text/vtt; charset=utf-8' }, body: vtt })
+    .then(function() { refreshVidlinkSubFile(); })
+    .catch(function() {});
+}
+
 function loadSubtitleText(text, label) {
   var parsed = parseSrt(text);
   if (!parsed.length) {
@@ -3999,6 +4024,7 @@ function loadSubtitleText(text, label) {
   refreshSubtitleButtons();
   setSubtitleStatus((label || 'Persian subtitles') + ' loaded — they sync to the video automatically. If they drift, use −2s / +2s, or press Start subs.');
   showSubtitleHint('Persian subtitles loaded ✓');
+  cacheSubtitleToWorker(text);
 }
 
 function handleSubtitleUpload(input) {
@@ -4190,12 +4216,23 @@ function loadFarsiFromSubdl(id, type, season, episode) {
 
 function loadExternalFarsiSubtitles(id, type, season, episode) {
   if (currentSubtitleLang !== 'fa') return;
-  // VidLink renders the injected Persian subtitle inside its own player — don't double it.
+  // VidLink renders the injected Persian subtitle inside its own player — don't double the overlay.
   if (currentPlayerSource === 'vidlink') {
     externalSubtitles = [];
-    setSubtitleStatus(SUB_WORKER
-      ? 'Persian subtitles are in the player (turn on via the CC icon).'
-      : 'Add a Subtitle helper URL in Settings to enable Persian on VidLink, or switch to Cinezo.');
+    setSubtitleStatus('Loading Persian subtitles into the player…');
+    var cacheDone = function(text) {
+      return cacheSubtitleToWorker(text).then(function() {
+        setSubtitleStatus('Persian subtitles are in the player — turn on via the CC icon.');
+      });
+    };
+    loadFarsiFromOpenSubtitles(id, type, season, episode)
+      .then(cacheDone)
+      .catch(function() {
+        if (SUBDL_KEY && window.JSZip) {
+          return loadFarsiFromSubdl(id, type, season, episode).then(cacheDone);
+        }
+        setSubtitleStatus('No Persian subtitles found — switch to Cinezo (↻) or add a SubDL key.');
+      });
     return;
   }
   externalSubtitles = [];
@@ -4654,7 +4691,7 @@ function initPlayerPrefs() {
     localStorage.removeItem('streamr_cinezo_server');
     var src = localStorage.getItem('streamr_player_source');
     var manual2 = localStorage.getItem('streamr_manual_2embed');
-    SUB_WORKER = localStorage.getItem('streamr_sub_worker') || '';
+    SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
     // Default: VidLink when a Subtitle helper Worker is configured, otherwise Cinezo overlay.
     if (src === '2embed' && manual2 === '1') setPlayerSource('2embed', true);
     else if (src === 'cinezo') setPlayerSource('cinezo', true);
