@@ -2014,7 +2014,7 @@
     <span class="ptb-ep" id="ptbEp"></span>
     <span class="ptb-title" id="ptbTitle">Now Playing</span>
     <div class="ptb-actions">
-      <span class="ptb-provider" id="ptbProvider">VidFast</span>
+      <span class="ptb-provider" id="ptbProvider">Cinezo</span>
       <button class="ptb-close" onclick="goHome()" title="Close player (Esc)">&#10005;</button>
     </div>
   </div>
@@ -2085,8 +2085,8 @@
         <div class="pref-group">
           <span class="pref-label">Source</span>
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value, true)">
-            <option value="vidfast" selected>VidFast (Persian subs)</option>
-            <option value="cinezo">Cinezo (overlay subs)</option>
+            <option value="vidlink">VidLink (Persian subs)</option>
+            <option value="cinezo" selected>Cinezo (overlay subs)</option>
             <option value="2embed">2Embed (backup)</option>
           </select>
         </div>
@@ -2455,9 +2455,14 @@
       <div class="modal-hint">Free key from <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--accent)">themoviedb.org/settings/api</a>. Enables poster images and search.</div>
     </div>
     <div class="modal-field">
+      <label>Subtitle helper URL <span style="color:var(--muted);font-weight:400">(for VidLink Persian)</span></label>
+      <input type="text" id="subWorkerInput" placeholder="https://streamr-subs.xxx.workers.dev">
+      <div class="modal-hint">Deploy the free Cloudflare Worker (see <strong>subtitle-worker</strong> folder) and paste its URL here. Enables Persian subtitles inside VidLink that stay on in fullscreen, including iPhone. Without this, Cinezo overlay subs are used.</div>
+    </div>
+    <div class="modal-field">
       <label>SubDL API Key <span style="color:var(--muted);font-weight:400">(optional)</span></label>
       <input type="text" id="subdlKeyInput" placeholder="For auto Farsi subtitles">
-      <div class="modal-hint">Free key from <a href="https://subdl.com/api" target="_blank" style="color:var(--accent)">subdl.com/api</a>. Extra fallback for Cinezo overlay subtitles. VidFast has built-in Persian — tap the CC icon in the player.</div>
+      <div class="modal-hint">Free key from <a href="https://subdl.com/api" target="_blank" style="color:var(--accent)">subdl.com/api</a>. Extra fallback for Cinezo overlay subtitles.</div>
     </div>
     <div class="modal-field">
       <label class="tog-label" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:0">
@@ -2469,11 +2474,11 @@
     <div class="modal-field">
       <label>Default Player</label>
       <select class="pref-select" id="settingsPlayerSource" style="width:100%;max-width:none">
-        <option value="vidfast">VidFast (built-in Persian subtitles)</option>
+        <option value="vidlink">VidLink (Persian subs, fullscreen-safe)</option>
         <option value="cinezo">Cinezo (overlay subs)</option>
         <option value="2embed">2Embed (backup)</option>
       </select>
-      <div class="modal-hint"><strong>VidFast</strong> shows Persian subtitles inside the player (tap the CC icon) and they stay on in fullscreen, including iPhone. <strong>Cinezo</strong> uses the in-app overlay — use the app's ⛶ button (top-right of the video) for fullscreen with subtitles. Tap ↻ to switch source.</div>
+      <div class="modal-hint"><strong>VidLink</strong> + Subtitle helper URL renders Persian inside the player (fullscreen-safe on iPhone). <strong>Cinezo</strong> uses the in-app overlay — use the app's ⛶ button for fullscreen with subtitles. Tap ↻ to switch source.</div>
     </div>
     <div class="modal-field">
       <label>Hide Genres</label>
@@ -2494,10 +2499,11 @@
 </div>
 
 <script>
-var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'vidfast', currentSubtitleLang = 'fa', searchTimeout = null, searchFocusIdx = -1;
+var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'cinezo', currentSubtitleLang = 'fa', searchTimeout = null, searchFocusIdx = -1;
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
+var SUB_WORKER = localStorage.getItem('streamr_sub_worker') || '';
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
-var PLAYER_SOURCES = ['vidfast', 'cinezo', '2embed'];
+var PLAYER_SOURCES = ['vidlink', 'cinezo', '2embed'];
 var CINEZO_SERVER_CYCLE = [''];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
@@ -2998,15 +3004,19 @@ document.addEventListener('click', function(e) {
 /* Player */
 function normalizePlayerSource(source) {
   if (source === 'vidking') source = '2embed';
-  if (source === 'vidlink') source = 'vidfast';
-  return PLAYER_SOURCES.indexOf(source) >= 0 ? source : 'vidfast';
+  if (source === 'vidfast') source = SUB_WORKER ? 'vidlink' : 'cinezo';
+  return PLAYER_SOURCES.indexOf(source) >= 0 ? source : (SUB_WORKER ? 'vidlink' : 'cinezo');
 }
 
 function getPlayerSourceLabel(source) {
-  if (source === 'vidfast') return 'VidFast';
+  if (source === 'vidlink') return 'VidLink';
   if (source === 'cinezo') return 'Cinezo';
   if (source === '2embed') return '2Embed';
-  return 'VidFast';
+  return 'Cinezo';
+}
+
+function usesInPlayerSubtitles() {
+  return currentPlayerSource === 'vidlink';
 }
 
 function isMobileDevice() {
@@ -3019,6 +3029,17 @@ function isStandaloneApp() {
     || window.navigator.standalone === true;
 }
 
+// Build the subtitle-Worker URL for a title (empty string if no Worker is configured).
+function buildSubWorkerUrl(id, type, s, e) {
+  if (!SUB_WORKER) return '';
+  var base = SUB_WORKER.replace(/\/+$/, '');
+  var p = new URLSearchParams();
+  p.set('type', type === 'tv' ? 'tv' : 'movie');
+  p.set('id', id);
+  if (type === 'tv') { p.set('season', s || 1); p.set('episode', e || 1); }
+  return base + '/?' + p.toString();
+}
+
 function buildUrl(id, type, s, e, progress, forceAutoplay) {
   var sourceEl = document.getElementById('playerSource');
   var source = normalizePlayerSource(sourceEl ? sourceEl.value : currentPlayerSource);
@@ -3027,18 +3048,20 @@ function buildUrl(id, type, s, e, progress, forceAutoplay) {
   var mobile = isMobileDevice();
   var autoOn = !mobile && (forceAutoplay || document.getElementById('autoPlay').checked);
 
-  if (source === 'vidfast') {
-    // VidFast renders subtitles INSIDE its own player, so Persian (sub=fa) survives every
-    // fullscreen incl. iOS native — no parent-page overlay needed.
-    var vfBase = type === 'movie'
-      ? 'https://vidfast.pro/movie/' + id
-      : 'https://vidfast.pro/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
-    var vf = new URLSearchParams();
-    vf.set('sub', currentSubtitleLang || 'fa');
-    vf.set('autoPlay', autoOn ? 'true' : 'false');
-    vf.set('theme', currentColor);
-    if (progress && progress > 10) vf.set('startAt', Math.floor(progress));
-    return vfBase + '?' + vf.toString();
+  if (source === 'vidlink') {
+    // VidLink renders an injected external subtitle (sub_file) INSIDE its own player, so the
+    // Persian track survives every fullscreen incl. iOS native. The .vtt comes from our
+    // subtitle Worker (see Dashboard/subtitle-worker). No parent-page overlay needed.
+    var vlBase = type === 'movie'
+      ? 'https://vidlink.pro/movie/' + id
+      : 'https://vidlink.pro/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
+    var vl = new URLSearchParams();
+    vl.set('autoplay', autoOn ? 'true' : 'false');
+    vl.set('primaryColor', currentColor);
+    vl.set('title', 'true');
+    var subUrl = buildSubWorkerUrl(id, type, s, e);
+    if (subUrl) { vl.set('sub_file', subUrl); vl.set('sub_label', 'فارسی'); }
+    return vlBase + '?' + vl.toString();
   }
 
   if (source === 'cinezo') {
@@ -3093,7 +3116,7 @@ function markPlayerReady(statusText) {
 }
 
 function setPlayerSource(source, manual) {
-  source = normalizePlayerSource(source || 'vidfast');
+  source = normalizePlayerSource(source || (SUB_WORKER ? 'vidlink' : 'cinezo'));
   currentPlayerSource = source;
   try {
     localStorage.setItem('streamr_player_source', source);
@@ -3479,23 +3502,27 @@ function toggleCssFullscreen() {
 }
 
 function togglePlayerFullscreen() {
-  var el = document.getElementById('playerInner');
-  if (!el) return;
-  var req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-  // Cinezo subs are a parent-page overlay — always fullscreen the container, not the iframe.
-  var preferCss = currentPlayerSource === 'cinezo' && (isMobileDevice() || !req);
-  if (preferCss || !req) {
-    if (document.body.classList.contains('css-fs')) document.body.classList.remove('css-fs');
-    else toggleCssFullscreen();
+  var inner = document.getElementById('playerInner');
+  var iframe = getPlayerIframe();
+  if (!inner) return;
+  var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+  var exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+  if (fsEl && exit) { exit.call(document); return; }
+  if (document.body.classList.contains('css-fs')) { document.body.classList.remove('css-fs'); return; }
+
+  // Cinezo subs are a parent-page overlay — fullscreen the container (or CSS fill on mobile).
+  if (currentPlayerSource === 'cinezo') {
+    var innerReq = inner.requestFullscreen || inner.webkitRequestFullscreen || inner.msRequestFullscreen;
+    if (isMobileDevice() || !innerReq) { toggleCssFullscreen(); return; }
+    innerReq.call(inner).catch(function() { toggleCssFullscreen(); });
     return;
   }
-  if (document.body.classList.contains('css-fs')) { document.body.classList.remove('css-fs'); return; }
-  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    req.call(el).catch(function() { toggleCssFullscreen(); });
-  } else {
-    var exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
-    if (exit) exit.call(document);
-  }
+
+  // VidLink subs render inside the iframe — fullscreen the iframe, never the container.
+  var target = iframe || inner;
+  var targetReq = target.requestFullscreen || target.webkitRequestFullscreen || target.msRequestFullscreen;
+  if (!targetReq) { showToast('Use the fullscreen button inside the player'); return; }
+  targetReq.call(target).catch(function() { showToast('Use the fullscreen button inside the player'); });
 }
 
 // If the embedded player fullscreens its own iframe (the in-player FS button), our
@@ -3505,6 +3532,9 @@ function togglePlayerFullscreen() {
 // switch we leave their fullscreen untouched (no regression). Note: iOS Safari uses the
 // native video player for cross-origin iframes and cannot show an external overlay.
 function keepSubtitlesInFullscreen() {
+  // Only Cinezo uses a parent-page overlay. VidLink subs are inside the iframe — hijacking
+  // fullscreen to #playerInner would hide them (same bug that broke VidFast fullscreen).
+  if (currentPlayerSource !== 'cinezo') return;
   var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
   var iframe = getPlayerIframe();
   var inner = document.getElementById('playerInner');
@@ -3680,9 +3710,9 @@ function loadPlayer(id, type, s, e, progress, title) {
   // (allow-scripts + allow-same-origin) but CANNOT open pop-under ad pages, redirect the
   // top window to ad/notification sites, or hijack taps via overlay links. Omitting
   // allow-popups and allow-top-navigation neutralizes all three without breaking playback.
-  // VidFast detects and refuses to run sandboxed (and renders its own subtitles), so it is
-  // exempt; the ad-heavy fallbacks (Cinezo / 2Embed) stay sandboxed.
-  if (currentPlayerSource !== 'vidfast') {
+  // VidLink is exempt from sandbox (some players refuse to run sandboxed); Cinezo / 2Embed stay
+  // sandboxed to block pop-under ads.
+  if (currentPlayerSource !== 'vidlink') {
     iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
     iframe.setAttribute('referrerpolicy', 'no-referrer');
   }
@@ -4160,10 +4190,12 @@ function loadFarsiFromSubdl(id, type, season, episode) {
 
 function loadExternalFarsiSubtitles(id, type, season, episode) {
   if (currentSubtitleLang !== 'fa') return;
-  // VidFast renders Persian subtitles inside its own player — don't double them with our overlay.
-  if (currentPlayerSource === 'vidfast') {
+  // VidLink renders the injected Persian subtitle inside its own player — don't double it.
+  if (currentPlayerSource === 'vidlink') {
     externalSubtitles = [];
-    setSubtitleStatus('Persian subtitles are in the player — tap the CC / speech-bubble icon.');
+    setSubtitleStatus(SUB_WORKER
+      ? 'Persian subtitles are in the player (turn on via the CC icon).'
+      : 'Add a Subtitle helper URL in Settings to enable Persian on VidLink, or switch to Cinezo.');
     return;
   }
   externalSubtitles = [];
@@ -4560,6 +4592,8 @@ function openSettings() {
   document.getElementById('tmdbKeyInput').value = TMDB_KEY;
   var subIn = document.getElementById('subdlKeyInput');
   if (subIn) subIn.value = SUBDL_KEY;
+  var workerIn = document.getElementById('subWorkerInput');
+  if (workerIn) workerIn.value = SUB_WORKER;
   var srcIn = document.getElementById('settingsPlayerSource');
   if (srcIn) srcIn.value = normalizePlayerSource(currentPlayerSource);
   var settingsEp = document.getElementById('settingsEpSel');
@@ -4588,8 +4622,13 @@ function saveSettings() {
   SUBDL_KEY = subKey ? subKey.value.trim() : '';
   if (SUBDL_KEY) localStorage.setItem('streamr_subdl_key', SUBDL_KEY);
   else localStorage.removeItem('streamr_subdl_key');
+  var workerIn = document.getElementById('subWorkerInput');
+  SUB_WORKER = workerIn ? workerIn.value.trim().replace(/\/+$/, '') : '';
+  if (SUB_WORKER) localStorage.setItem('streamr_sub_worker', SUB_WORKER);
+  else localStorage.removeItem('streamr_sub_worker');
   var srcIn = document.getElementById('settingsPlayerSource');
   if (srcIn) setPlayerSource(srcIn.value, true);
+  else if (SUB_WORKER) setPlayerSource('vidlink', true);
   var settingsEp = document.getElementById('settingsEpSel');
   var epSel = document.getElementById('epSel');
   if (settingsEp && epSel) {
@@ -4615,11 +4654,12 @@ function initPlayerPrefs() {
     localStorage.removeItem('streamr_cinezo_server');
     var src = localStorage.getItem('streamr_player_source');
     var manual2 = localStorage.getItem('streamr_manual_2embed');
-    // VidFast is the default (built-in Persian subtitles, fullscreen-safe). Only honour an
-    // explicit pinned 2Embed backup; legacy VidLink/Cinezo saves migrate to VidFast.
+    SUB_WORKER = localStorage.getItem('streamr_sub_worker') || '';
+    // Default: VidLink when a Subtitle helper Worker is configured, otherwise Cinezo overlay.
     if (src === '2embed' && manual2 === '1') setPlayerSource('2embed', true);
     else if (src === 'cinezo') setPlayerSource('cinezo', true);
-    else setPlayerSource('vidfast');
+    else if (src === 'vidlink' && SUB_WORKER) setPlayerSource('vidlink', true);
+    else setPlayerSource(SUB_WORKER ? 'vidlink' : 'cinezo');
     var ap = localStorage.getItem('streamr_autoplay');
     if (ap !== null) document.getElementById('autoPlay').checked = ap === '1';
     var ep = localStorage.getItem('streamr_epsel');
@@ -4718,7 +4758,7 @@ function clearData() {
   if (confirm('Clear all watch history and cached data?')) {
     [HK, LK, RK_SEARCH, 'streamr_posters_v2', 'streamr_meta_v1', 'streamr_tmdb_key', 'streamr_subdl_key',
       HK_HIDDEN, 'streamr_hidden_meta_v1', 'streamr_hidden_genres', 'streamr_player_source', 'streamr_manual_2embed',
-      'streamr_autoplay', 'streamr_epsel', 'streamr_cinezo_server', 'streamr_quality_tip_seen', 'streamr_subs_on', 'streamr_sub_size'
+      'streamr_autoplay', 'streamr_epsel', 'streamr_cinezo_server', 'streamr_quality_tip_seen', 'streamr_subs_on', 'streamr_sub_size', 'streamr_sub_worker'
     ].forEach(function(k) { try { localStorage.removeItem(k); } catch(e) {} });
     historyMem = null;
     lastHistorySnapshot = {};
