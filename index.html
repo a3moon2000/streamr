@@ -344,6 +344,23 @@
     .subtitle-overlay.size-sm { font-size: clamp(14px, 3.5vw, 22px); }
     .subtitle-overlay.size-lg { font-size: clamp(22px, 5.5vw, 36px); }
     .subtitle-overlay.sub-off { display: none !important; }
+    /* Keep subtitles visible and well-placed when the container is fullscreened. */
+    #playerInner:fullscreen, #playerInner:-webkit-full-screen {
+      width: 100vw; height: 100vh; background: #000;
+    }
+    #playerInner:fullscreen iframe, #playerInner:-webkit-full-screen iframe {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+    }
+    #playerInner:fullscreen .subtitle-overlay,
+    #playerInner:-webkit-full-screen .subtitle-overlay {
+      z-index: 2147483647;
+      bottom: clamp(40px, 8vh, 110px);
+      font-size: clamp(24px, 3.2vw, 44px);
+    }
+    #playerInner:fullscreen .subtitle-overlay.size-sm,
+    #playerInner:-webkit-full-screen .subtitle-overlay.size-sm { font-size: clamp(20px, 2.6vw, 34px); }
+    #playerInner:fullscreen .subtitle-overlay.size-lg,
+    #playerInner:-webkit-full-screen .subtitle-overlay.size-lg { font-size: clamp(28px, 4vw, 56px); }
     body.player-mode {
       overflow-anchor: none;
       scroll-behavior: auto;
@@ -3409,6 +3426,25 @@ function togglePlayerFullscreen() {
     if (exit) exit.call(document);
   }
 }
+
+// If the embedded player fullscreens its own iframe (the in-player FS button), our
+// subtitle overlay — a sibling of the iframe in the parent page — would be hidden.
+// Switch the fullscreen target to #playerInner (which contains BOTH the iframe and the
+// overlay) so Persian subtitles stay on screen. Best-effort: if the browser rejects the
+// switch we leave their fullscreen untouched (no regression). Note: iOS Safari uses the
+// native video player for cross-origin iframes and cannot show an external overlay.
+function keepSubtitlesInFullscreen() {
+  var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+  var iframe = getPlayerIframe();
+  var inner = document.getElementById('playerInner');
+  if (!fsEl || !iframe || !inner) return;
+  if (fsEl === iframe && fsEl !== inner) {
+    var req = inner.requestFullscreen || inner.webkitRequestFullscreen;
+    if (req) { try { var p = req.call(inner); if (p && p.catch) p.catch(function(){}); } catch (e) {} }
+  }
+}
+document.addEventListener('fullscreenchange', keepSubtitlesInFullscreen);
+document.addEventListener('webkitfullscreenchange', keepSubtitlesInFullscreen);
 
 function togglePlayerPiP() {
   var iframe = getPlayerIframe();
