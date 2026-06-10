@@ -2511,6 +2511,9 @@ var CINEZO_SERVER_CYCLE = [''];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
 var playerLoadTimer = null, playerGotProgress = false, playerReadyMarked = false, playerSourceFailCount = 0, playerAutoFallback = false, playerUnmuteAttempts = 0;
+// True once the user explicitly picks a source (↻ / selects). Stops the load watchdog from
+// auto-switching away — e.g. VidLink may not post progress events while playing fine.
+var userPinnedSource = false;
 var CINEZO_ORIGIN = 'https://player.cinezo.live';
 var playerIdleTimer = null, subtitlesVisible = true, subtitleSizeIdx = 1;
 var tvHubPage = 1, tvHubShowId = null, tvHubShowTitle = '', tvHubGenre = 0;
@@ -3123,6 +3126,7 @@ function markPlayerReady(statusText) {
 
 function setPlayerSource(source, manual) {
   source = normalizePlayerSource(source || 'cinezo');
+  if (manual) userPinnedSource = true;
   currentPlayerSource = source;
   try {
     localStorage.setItem('streamr_player_source', source);
@@ -3439,12 +3443,14 @@ function armPlayerLoadWatch() {
   var failMs = currentPlayerSource === 'vidlink' ? 8000 : 18000;
   playerLoadTimer = setTimeout(function() {
     if (playerGotProgress) return;
-    if (lastPlayerRequest && playerSourceFailCount < 1) {
+    // Never auto-switch away from a source the user explicitly picked (VidLink can play
+    // fine without posting progress events). The Retry / ↻ UI below still appears.
+    if (!userPinnedSource && lastPlayerRequest && playerSourceFailCount < 1) {
       var idx = PLAYER_SOURCES.indexOf(currentPlayerSource);
       var next = PLAYER_SOURCES[(idx + 1) % PLAYER_SOURCES.length];
       var prevLabel = getPlayerSourceLabel(currentPlayerSource);
       playerSourceFailCount++;
-      setPlayerSource(next, true);
+      setPlayerSource(next, false);
       showToast(prevLabel + ' slow — trying ' + getPlayerSourceLabel(next) + '…');
       return;
     }
