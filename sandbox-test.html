@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head><title>Fast player test</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+ body{margin:0;background:#111;color:#fff;font-family:sans-serif}
+ .case{padding:12px 8px 2px;font-size:16px;font-weight:700}
+ .hint{color:#9a9a9a;font-size:12px;padding:0 8px 8px;font-weight:400}
+ iframe{width:96vw;height:34vh;border:2px solid #555;display:block;margin:0 auto}
+</style>
+</head>
+<body>
+<div class="case">A — VidLux <span class="hint">(current default)</span></div>
+<iframe sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; fullscreen; encrypted-media" src="https://vidlux.online/embed/movie/27205"></iframe>
+
+<div class="case">B — VidSrc.su <span class="hint">sandboxed</span></div>
+<iframe sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; fullscreen; encrypted-media" src="https://vidsrc.su/embed/movie/27205"></iframe>
+
+<div class="case">C — CineSrc <span class="hint">sandboxed</span></div>
+<iframe sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; fullscreen; encrypted-media" src="https://cinesrc.st/embed/movie/27205"></iframe>
+
+<div class="case">D — MadPlay <span class="hint">sandboxed</span></div>
+<iframe sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; fullscreen; encrypted-media" src="https://madplay.site/embed/movie/27205"></iframe>
+</body>
+</html>
