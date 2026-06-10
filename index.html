@@ -2118,7 +2118,7 @@
         <div class="pref-group">
           <span class="pref-label">Source</span>
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value, true)">
-            <option value="cinezo" selected>Cinezo (no popups)</option>
+            <option value="rivestream" selected>RiveStream (no popups)</option>
             <option value="vidlink">VidLink (in-player subs)</option>
           </select>
         </div>
@@ -2532,10 +2532,10 @@
     <div class="modal-field">
       <label>Default Player</label>
       <select class="pref-select" id="settingsPlayerSource" style="width:100%;max-width:none">
-        <option value="cinezo">Cinezo (no popups)</option>
+        <option value="rivestream">RiveStream (no popups)</option>
         <option value="vidlink">VidLink (in-player subs)</option>
       </select>
-      <div class="modal-hint"><strong>Cinezo</strong> is popup-blocked (sandboxed) — zero ad popups; Persian subs show on the app overlay, and on iPhone use the app's ⛶ button for fullscreen so they stay visible. <strong>VidLink</strong> renders subs inside the player (survives any fullscreen, auto-sync matching) but its popups cannot be blocked. Tap ↻ in the player to switch.</div>
+      <div class="modal-hint"><strong>RiveStream</strong> is popup-blocked (sandboxed) — zero ad popups; Persian subs show on the app overlay, and on iPhone use the app's ⛶ button for fullscreen so they stay visible (nudge with −2s/+2s if needed). <strong>VidLink</strong> renders subs inside the player (survives any fullscreen, auto-sync matching) but its popups cannot be blocked. Tap ↻ in the player to switch.</div>
     </div>
     <div class="modal-field">
       <label>Hide Genres</label>
@@ -2561,7 +2561,7 @@ var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var SUB_WORKER_DEFAULT = 'https://streamr-subs.akila-attribution.workers.dev';
 var SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
-var PLAYER_SOURCES = ['cinezo', 'vidlink'];
+var PLAYER_SOURCES = ['rivestream', 'vidlink'];
 var CINEZO_SERVER_CYCLE = [''];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
@@ -3081,12 +3081,12 @@ document.addEventListener('click', function(e) {
 /* Player */
 function normalizePlayerSource(source) {
   if (source === 'vidlink') return 'vidlink';
-  return 'cinezo';
+  return 'rivestream';
 }
 
 function getPlayerSourceLabel(source) {
   if (source === 'vidlink') return 'VidLink';
-  return 'Cinezo';
+  return 'RiveStream';
 }
 
 function usesInPlayerSubtitles() {
@@ -3143,31 +3143,11 @@ function buildUrl(id, type, s, e, progress, forceAutoplay) {
     return vlBase + '?' + vl.toString();
   }
 
-  // Cinezo (default): tolerates the full popup-blocking sandbox = zero popups.
-  // Persian subs render on the app's overlay (auto-loaded + auto-synced).
-  var czBase = type === 'movie' ? 'https://player.cinezo.live/embed/movie/' + id : 'https://player.cinezo.live/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
-  var cz = new URLSearchParams();
-  cz.set('autoplay', autoOn ? 'true' : 'false');
-  cz.set('poster', 'true');
-  cz.set('chromecast', 'true');
-  cz.set('servericon', 'true');
-  cz.set('setting', 'true');
-  cz.set('autonext', 'false');
-  cz.set('pip', 'true');
-  var czServer = getCinezoServer();
-  if (czServer) cz.set('server', czServer);
-  cz.set('font', 'Noto Sans Arabic');
-  cz.set('fontcolor', 'ffffff');
-  cz.set('fontsize', '22');
-  cz.set('opacity', '0.72');
-  cz.set('primarycolor', currentColor);
-  cz.set('secondarycolor', '111827');
-  cz.set('iconcolor', 'ffffff');
-  cz.set('mute', 'false');
-  cz.set('muted', 'false');
-  cz.set('volume', '1');
-  if (progress && progress > 10) cz.set('startAt', Math.floor(progress));
-  return czBase + '?' + cz.toString();
+  // RiveStream (default): plays under the full popup-blocking sandbox = zero popups.
+  // Open-source, ad-free. Persian subs render on the app's overlay (auto-loaded).
+  return type === 'movie'
+    ? 'https://rivestream.cc/embed?type=movie&id=' + id
+    : 'https://rivestream.cc/embed?type=tv&id=' + id + '&season=' + (s || 1) + '&episode=' + (e || 1);
 }
 
 function revealPlayerEmbed() {
@@ -3602,8 +3582,9 @@ function togglePlayerFullscreen() {
   if (!inner) return;
   if (document.body.classList.contains('css-fs')) { document.body.classList.remove('css-fs'); return; }
 
-  // Cinezo subs live on the parent page — always use CSS fill so the overlay stays visible.
-  if (currentPlayerSource === 'cinezo') { enterCinezoFullscreen(); return; }
+  // Overlay-subtitle players (RiveStream) keep subs on the parent page — always use CSS fill
+  // so the overlay stays visible in fullscreen.
+  if (currentPlayerSource !== 'vidlink') { enterCinezoFullscreen(); return; }
 
   var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
   var exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
@@ -3781,9 +3762,9 @@ function loadPlayer(id, type, s, e, progress, title) {
   armPlayerLoadWatch();
 
   var iframe = document.createElement('iframe');
-  // Ad hardening: sandbox only Cinezo — 2Embed and VidLink detect sandbox and refuse to play
-  // ("sandbox block"). Cinezo tolerates a tight sandbox (no popups / top navigation).
-  if (currentPlayerSource === 'cinezo') {
+  // Ad hardening: sandbox every player EXCEPT VidLink (which detects the sandbox and refuses
+  // to run). RiveStream plays fine sandboxed → no popups / no top-navigation hijacks.
+  if (currentPlayerSource !== 'vidlink') {
     iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
     iframe.setAttribute('referrerpolicy', 'no-referrer');
   }
@@ -3855,7 +3836,7 @@ function loadPlayer(id, type, s, e, progress, title) {
     saveHistory(id, type, s, e, title || (type + ' #' + id), progress, 0, 0);
   }
   loadExternalFarsiSubtitles(id, type, s, e);
-  if (currentPlayerSource === 'cinezo') showToast('Use ⛶ (top-right) for fullscreen with subtitles');
+  if (currentPlayerSource !== 'vidlink') showToast('Use ⛶ (top-right) for fullscreen with subtitles');
   maybeShowQualityTip();
   maybeShowMobileAdTip();
   bumpPlayerIdle();
@@ -4964,7 +4945,7 @@ function initPlayerPrefs() {
     // (pinned, so the watchdog never silently switches someone who accepted the trade-offs).
     var vlOptin = localStorage.getItem('streamr_vidlink_optin') === '1';
     if (src === 'vidlink' && vlOptin) setPlayerSource('vidlink', true);
-    else setPlayerSource('cinezo');
+    else setPlayerSource('rivestream');
     var ap = localStorage.getItem('streamr_autoplay');
     if (ap !== null) document.getElementById('autoPlay').checked = ap === '1';
     var ep = localStorage.getItem('streamr_epsel');
