@@ -412,6 +412,9 @@
       top: 0;
       z-index: 260;
       min-height: 50px;
+      /* Installed-app pages draw under the iPhone status bar / notch (black-translucent).
+         Pad the bar below it so the ✕ Close is actually tappable; the player follows down. */
+      padding-top: calc(10px + env(safe-area-inset-top, 0px));
     }
     body.player-mode .player-wrap.open {
       background: #000000;
@@ -505,6 +508,8 @@
        permanently visible — it is the only way back to the app. */
     @media (max-width: 640px) {
       body.player-mode .player-title-bar.idle-hide { opacity: 1; pointer-events: auto; }
+      /* Thumb-sized Close target on phones — it is the only way back to home. */
+      body.player-mode .ptb-close { width: 44px; height: 44px; font-size: 20px; }
     }
     body.player-mode .prog-strip { display: none !important; }
     .dock-progress { height: 3px; background: #2a2a2a; transition: opacity 0.35s ease, transform 0.35s ease; }
