@@ -2118,9 +2118,7 @@
         <div class="pref-group">
           <span class="pref-label">Source</span>
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value, true)">
-            <option value="vidlux" selected>VidLux (no popups)</option>
-            <option value="rivestream">RiveStream (no popups)</option>
-            <option value="vidlink">VidLink (in-player subs)</option>
+            <option value="vidlux" selected>VidLux</option>
           </select>
         </div>
         <div class="pref-group">
@@ -2533,11 +2531,9 @@
     <div class="modal-field">
       <label>Default Player</label>
       <select class="pref-select" id="settingsPlayerSource" style="width:100%;max-width:none">
-        <option value="vidlux">VidLux (no popups)</option>
-        <option value="rivestream">RiveStream (no popups)</option>
-        <option value="vidlink">VidLink (in-player subs)</option>
+        <option value="vidlux">VidLux</option>
       </select>
-      <div class="modal-hint"><strong>VidLux</strong> and <strong>RiveStream</strong> are popup-blocked (sandboxed) — zero ad popups; Persian subs show on the app overlay, and on iPhone use the app's ⛶ button for fullscreen so they stay visible (nudge with −2s/+2s if needed). <strong>VidLink</strong> renders subs inside the player (survives any fullscreen, auto-sync matching) but its popups cannot be blocked. Tap ↻ in the player to switch sources.</div>
+      <div class="modal-hint"><strong>VidLux</strong> is popup-blocked (sandboxed) — zero ad popups. Persian subtitles show on the app overlay; on iPhone use the app's ⛶ button for fullscreen so they stay visible, and nudge with −2s/+2s if the timing drifts.</div>
     </div>
     <div class="modal-field">
       <label>Hide Genres</label>
@@ -2563,7 +2559,7 @@ var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var SUB_WORKER_DEFAULT = 'https://streamr-subs.akila-attribution.workers.dev';
 var SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
-var PLAYER_SOURCES = ['vidlux', 'rivestream', 'vidlink'];
+var PLAYER_SOURCES = ['vidlux'];
 var CINEZO_SERVER_CYCLE = [''];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
@@ -3082,14 +3078,10 @@ document.addEventListener('click', function(e) {
 
 /* Player */
 function normalizePlayerSource(source) {
-  if (source === 'vidlink') return 'vidlink';
-  if (source === 'rivestream') return 'rivestream';
   return 'vidlux';
 }
 
 function getPlayerSourceLabel(source) {
-  if (source === 'vidlink') return 'VidLink';
-  if (source === 'rivestream') return 'RiveStream';
   return 'VidLux';
 }
 
@@ -4954,9 +4946,7 @@ function initPlayerPrefs() {
     // Cinezo = popup-free default. Honour VidLink only when the user explicitly opted in
     // (pinned, so the watchdog never silently switches someone who accepted the trade-offs).
     var vlOptin = localStorage.getItem('streamr_vidlink_optin') === '1';
-    if (src === 'vidlink' && vlOptin) setPlayerSource('vidlink', true);
-    else if (src === 'rivestream') setPlayerSource('rivestream', true);
-    else setPlayerSource('vidlux');
+    setPlayerSource('vidlux');
     var ap = localStorage.getItem('streamr_autoplay');
     if (ap !== null) document.getElementById('autoPlay').checked = ap === '1';
     var ep = localStorage.getItem('streamr_epsel');
