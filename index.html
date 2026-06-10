@@ -2072,7 +2072,7 @@
       <button class="dock-btn" type="button" onclick="togglePlayerPiP()" title="Picture in Picture" aria-label="Picture in picture">
         <svg viewBox="0 0 24 24"><path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>
       </button>
-      <button class="dock-btn" type="button" onclick="cyclePlayerSource()" title="Switch player (Cinezo / VidLink)" aria-label="Switch player source">
+      <button class="dock-btn" type="button" onclick="cyclePlayerSource()" title="Reload player" aria-label="Reload player">
         <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
       </button>
     </div>
@@ -2115,8 +2115,7 @@
         <div class="pref-group">
           <span class="pref-label">Source</span>
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value, true)">
-            <option value="cinezo" selected>Cinezo (overlay subs)</option>
-            <option value="vidlink">VidLink (Persian subs)</option>
+            <option value="vidlink" selected>VidLink</option>
           </select>
         </div>
         <div class="pref-group">
@@ -2529,10 +2528,9 @@
     <div class="modal-field">
       <label>Default Player</label>
       <select class="pref-select" id="settingsPlayerSource" style="width:100%;max-width:none">
-        <option value="cinezo">Cinezo (overlay subs)</option>
-        <option value="vidlink">VidLink (Persian subs, fullscreen-safe)</option>
+        <option value="vidlink" selected>VidLink (Persian subs in the player)</option>
       </select>
-      <div class="modal-hint"><strong>Cinezo</strong> is the reliable default (overlay Persian subs — use ⛶ for fullscreen). <strong>VidLink</strong> is experimental and may hang; if it does, Streamr auto-switches to Cinezo after ~8s.</div>
+      <div class="modal-hint">VidLink shows Persian subtitles inside the player (tap the CC icon) and they stay on in any fullscreen, including iPhone. If a stream stalls, tap ↻ in the player controls to reload it.</div>
     </div>
     <div class="modal-field">
       <label>Hide Genres</label>
@@ -2558,7 +2556,7 @@ var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var SUB_WORKER_DEFAULT = 'https://streamr-subs.akila-attribution.workers.dev';
 var SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
-var PLAYER_SOURCES = ['cinezo', 'vidlink'];
+var PLAYER_SOURCES = ['vidlink'];
 var CINEZO_SERVER_CYCLE = [''];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
@@ -3071,13 +3069,11 @@ document.addEventListener('click', function(e) {
 
 /* Player */
 function normalizePlayerSource(source) {
-  if (source === 'vidking' || source === '2embed' || source === 'vidfast') source = 'cinezo';
-  return PLAYER_SOURCES.indexOf(source) >= 0 ? source : 'cinezo';
+  return 'vidlink';
 }
 
 function getPlayerSourceLabel(source) {
-  if (source === 'vidlink') return 'VidLink';
-  return 'Cinezo';
+  return 'VidLink';
 }
 
 function usesInPlayerSubtitles() {
@@ -3132,35 +3128,9 @@ function buildUrl(id, type, s, e, progress, forceAutoplay) {
     return vlBase + '?' + vl.toString();
   }
 
-  if (source === 'cinezo') {
-    var czBase = type === 'movie' ? 'https://player.cinezo.live/embed/movie/' + id : 'https://player.cinezo.live/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
-    var cz = new URLSearchParams();
-    cz.set('autoplay', autoOn ? 'true' : 'false');
-    cz.set('poster', 'true');
-    cz.set('chromecast', 'true');
-    cz.set('servericon', 'true');
-    cz.set('setting', 'true');
-    cz.set('autonext', 'false');
-    cz.set('pip', 'true');
-    var czServer = getCinezoServer();
-    if (czServer) cz.set('server', czServer);
-    cz.set('font', 'Noto Sans Arabic');
-    cz.set('fontcolor', 'ffffff');
-    cz.set('fontsize', '22');
-    cz.set('opacity', '0.72');
-    cz.set('primarycolor', currentColor);
-    cz.set('secondarycolor', '111827');
-    cz.set('iconcolor', 'ffffff');
-    cz.set('mute', 'false');
-    cz.set('muted', 'false');
-    cz.set('volume', '1');
-    if (progress && progress > 10) cz.set('startAt', Math.floor(progress));
-    return czBase + '?' + cz.toString();
-  }
-
   return type === 'movie'
-    ? 'https://player.cinezo.live/embed/movie/' + id
-    : 'https://player.cinezo.live/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
+    ? 'https://vidlink.pro/movie/' + id
+    : 'https://vidlink.pro/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
 }
 
 function revealPlayerEmbed() {
@@ -3499,12 +3469,12 @@ function retryPlayer() {
 
 function armPlayerLoadWatch() {
   clearPlayerLoadWatch();
-  var failMs = currentPlayerSource === 'vidlink' ? 8000 : 18000;
+  var failMs = 15000;
   playerLoadTimer = setTimeout(function() {
     if (playerGotProgress) return;
     // Never auto-switch away from a source the user explicitly picked (VidLink can play
     // fine without posting progress events). The Retry / ↻ UI below still appears.
-    if (!userPinnedSource && lastPlayerRequest && playerSourceFailCount < 1) {
+    if (PLAYER_SOURCES.length > 1 && !userPinnedSource && lastPlayerRequest && playerSourceFailCount < 1) {
       var idx = PLAYER_SOURCES.indexOf(currentPlayerSource);
       var next = PLAYER_SOURCES[(idx + 1) % PLAYER_SOURCES.length];
       var prevLabel = getPlayerSourceLabel(currentPlayerSource);
@@ -3518,7 +3488,7 @@ function armPlayerLoadWatch() {
     if (el) {
       el.classList.add('error');
       var msg = el.querySelector('span');
-      if (msg) msg.textContent = 'Stream slow — tap Retry or switch source (↻)';
+      if (msg) msg.textContent = 'Stream slow — tap Retry or reload (↻)';
       var retry = el.querySelector('.player-loading-retry');
       if (retry) retry.style.display = '';
     }
@@ -4816,8 +4786,7 @@ function initPlayerPrefs() {
     localStorage.removeItem('streamr_cinezo_server');
     var src = localStorage.getItem('streamr_player_source');
     SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
-    // Cinezo is the reliable default; VidLink is opt-in per session via ↻ or Settings.
-    setPlayerSource('cinezo');
+    setPlayerSource('vidlink');
     var ap = localStorage.getItem('streamr_autoplay');
     if (ap !== null) document.getElementById('autoPlay').checked = ap === '1';
     var ep = localStorage.getItem('streamr_epsel');
