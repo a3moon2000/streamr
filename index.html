@@ -2082,8 +2082,11 @@
       <button class="dock-chip" id="subToggleBtn" type="button" onclick="toggleSubtitlesVisible()" aria-label="Toggle subtitles">Subs on</button>
       <button class="dock-chip" id="subBackBtn" type="button" onclick="syncSubtitle(-2)" disabled>−2s</button>
       <button class="dock-chip" id="subForwardBtn" type="button" onclick="syncSubtitle(2)" disabled>+2s</button>
+      <button class="dock-chip" id="subAltBtn" type="button" onclick="tryAnotherSubtitle()" disabled title="Load a different Persian subtitle version">Other sub</button>
       <button class="dock-chip" id="subMoreBtn" type="button" onclick="toggleSubAdvanced()" aria-label="More subtitle options" aria-expanded="false">⋯</button>
       <span class="sub-adv" id="subAdvanced">
+        <button class="dock-chip" type="button" onclick="fixSubsRunningFast()" title="Subtitles drift ahead of the actors">Subs too fast</button>
+        <button class="dock-chip" type="button" onclick="fixSubsRunningSlow()" title="Subtitles drift behind the actors">Subs too slow</button>
         <button class="dock-chip" id="subClockBtn" type="button" onclick="toggleSubtitleClock()" disabled>Start subs</button>
         <button class="dock-chip" id="subSizeBtn" type="button" onclick="cycleSubtitleSize()" aria-label="Subtitle size">Size M</button>
         <button class="dock-chip" type="button" onclick="document.getElementById('subUpload').click()">Upload .srt</button>
@@ -2567,6 +2570,11 @@ var userPinnedSource = false;
 // True while the player owns one history entry, so the iOS swipe-back / Android back
 // gesture closes the player instead of exiting the installed app.
 var playerHistoryArmed = false;
+// VidLink in-player subtitle state: the current VTT text (so we can retime/shift it),
+// the OpenSubtitles candidate list (so "Try another sub" can swap versions), a nonce to
+// cache-bust the sub_file URL after each re-upload, and the last reported playback time
+// (so a player reload can resume close to where the user was).
+var lastVidlinkVtt = '', subCandidates = [], subCandidateIdx = 0, subFileNonce = 0, lastKnownPlayerTime = 0;
 var CINEZO_ORIGIN = 'https://player.cinezo.live';
 var playerIdleTimer = null, subtitlesVisible = true, subtitleSizeIdx = 1;
 var tvHubPage = 1, tvHubShowId = null, tvHubShowTitle = '', tvHubGenre = 0;
@@ -3098,6 +3106,7 @@ function buildSubWorkerUrl(id, type, s, e) {
   p.set('type', type === 'tv' ? 'tv' : 'movie');
   p.set('id', id);
   if (type === 'tv') { p.set('season', s || 1); p.set('episode', e || 1); }
+  if (subFileNonce) p.set('v', subFileNonce); // cache-bust after a retime/swap re-upload
   return base + '/?' + p.toString();
 }
 
@@ -3120,6 +3129,7 @@ function buildUrl(id, type, s, e, progress, forceAutoplay) {
     vl.set('autoplay', autoOn ? 'true' : 'false');
     vl.set('primaryColor', currentColor);
     vl.set('title', 'true');
+    if (progress && progress > 30) vl.set('startAt', Math.floor(progress));
     // Attach sub_file only when explicitly requested — on first load VidLink often hangs
     // on "Fetching Data" while probing an external subtitle URL.
     if (forceAutoplay !== 'withSubs') return vlBase + '?' + vl.toString();
@@ -3908,16 +3918,19 @@ function setSubtitleStatus(text) {
 }
 
 function refreshSubtitleButtons() {
-  var hasSubs = externalSubtitles.length > 0;
+  var vidlinkSubs = currentPlayerSource === 'vidlink' && !!lastVidlinkVtt;
+  var hasSubs = externalSubtitles.length > 0 || vidlinkSubs;
   var start = document.getElementById('subClockBtn');
   var back = document.getElementById('subBackBtn');
   var forward = document.getElementById('subForwardBtn');
+  var alt = document.getElementById('subAltBtn');
   if (start) {
-    start.disabled = !hasSubs;
+    start.disabled = !externalSubtitles.length;
     start.textContent = subtitleClockRunning ? 'Pause subs' : 'Start subs';
   }
   if (back) back.disabled = !hasSubs;
   if (forward) forward.disabled = !hasSubs;
+  if (alt) alt.disabled = !(vidlinkSubs && subCandidates.length > 1);
 }
 
 var SUB_SIZE_LABELS = ['S', 'M', 'L'];
@@ -4018,6 +4031,12 @@ function toggleSubtitleClock() {
 }
 
 function syncSubtitle(delta) {
+  // VidLink renders the subtitle inside its player, so shifting means rewriting the file
+  // itself and reloading the player — the overlay offset can't reach in there.
+  if (currentPlayerSource === 'vidlink') {
+    adjustVidlinkSubs(delta, 1, 'Subtitles shifted ' + (delta > 0 ? '+' : '') + delta + 's');
+    return;
+  }
   if (!externalSubtitles.length) return;
   subtitleSyncOffset += delta;
   setSubtitleStatus('Subtitle sync ' + (subtitleSyncOffset >= 0 ? '+' : '') + subtitleSyncOffset.toFixed(0) + 's');
@@ -4050,19 +4069,63 @@ function refreshVidlinkSubFile() {
   if (currentPlayerSource !== 'vidlink' || !lastPlayerRequest) return;
   var iframe = getPlayerIframe();
   if (!iframe) return;
-  var url = buildUrl(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e, lastPlayerRequest.progress, 'withSubs');
+  var resumeAt = Math.max(lastPlayerRequest.progress || 0, lastKnownPlayerTime || 0);
+  var url = buildUrl(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e, resumeAt, 'withSubs');
   iframe.src = url + (url.indexOf('?') > -1 ? '&' : '?') + '_subts=' + Date.now();
 }
 
-function cacheSubtitleToWorker(rawSrt) {
-  if (!SUB_WORKER || !lastPlayerRequest || !rawSrt) return Promise.resolve();
-  var vtt = srtToVtt(rawSrt);
-  if (vtt.indexOf('-->') === -1) return Promise.resolve();
+function putVttToWorker(vtt, statusMsg) {
+  if (!SUB_WORKER || !lastPlayerRequest || !vtt || vtt.indexOf('-->') === -1) return Promise.resolve();
   var url = buildSubWorkerUrl(lastPlayerRequest.id, lastPlayerRequest.type, lastPlayerRequest.s, lastPlayerRequest.e);
   if (!url) return Promise.resolve();
   return fetch(url, { method: 'PUT', headers: { 'Content-Type': 'text/vtt; charset=utf-8' }, body: vtt })
-    .then(function() { refreshVidlinkSubFile(); })
-    .catch(function() {});
+    .then(function() {
+      lastVidlinkVtt = vtt;
+      subFileNonce = Date.now();
+      refreshSubtitleButtons();
+      if (statusMsg) setSubtitleStatus(statusMsg);
+      refreshVidlinkSubFile();
+    })
+    .catch(function() { setSubtitleStatus('Could not update subtitles — check your connection.'); });
+}
+
+function cacheSubtitleToWorker(rawSrt) {
+  if (!rawSrt) return Promise.resolve();
+  return putVttToWorker(srtToVtt(rawSrt));
+}
+
+// Rewrite every VTT timestamp: t' = t * rate + shift. A constant shift fixes an offset;
+// a rate fixes framerate drift (sub timed for a 25fps cut on a 23.976fps stream, etc.).
+function retimeVtt(vtt, shiftSec, rate) {
+  return String(vtt).replace(/(\d{2}):(\d{2}):(\d{2})\.(\d{3})/g, function(m, h, mn, s, ms) {
+    var t = (+h) * 3600 + (+mn) * 60 + (+s) + (+ms) / 1000;
+    var tms = Math.max(0, Math.round((t * (rate || 1) + (shiftSec || 0)) * 1000));
+    var H = Math.floor(tms / 3600000), M = Math.floor(tms / 60000) % 60, S = Math.floor(tms / 1000) % 60, MS = tms % 1000;
+    function p2(n){ return String(n).padStart(2, '0'); }
+    return p2(H) + ':' + p2(M) + ':' + p2(S) + '.' + String(MS).padStart(3, '0');
+  });
+}
+
+function adjustVidlinkSubs(shiftSec, rate, label) {
+  if (!lastVidlinkVtt) { setSubtitleStatus('No subtitle loaded yet — wait for it to load first.'); return; }
+  setSubtitleStatus(label + ' — reloading player…');
+  putVttToWorker(retimeVtt(lastVidlinkVtt, shiftSec, rate), label + ' ✓');
+}
+
+// Subs finish ahead of the actors → the file is on a faster clock → stretch it (and vice versa).
+function fixSubsRunningFast() { adjustVidlinkSubs(0, 25 / 23.976, 'Slowed subtitles down'); }
+function fixSubsRunningSlow() { adjustVidlinkSubs(0, 23.976 / 25, 'Sped subtitles up'); }
+
+// Drift usually means the subtitle was made for a different cut — swapping versions is the
+// real cure. Cycles through the OpenSubtitles Persian candidates for this title.
+function tryAnotherSubtitle() {
+  if (!subCandidates.length) { setSubtitleStatus('No alternative subtitle versions found for this title.'); return; }
+  subCandidateIdx = (subCandidateIdx + 1) % subCandidates.length;
+  var label = 'version ' + (subCandidateIdx + 1) + '/' + subCandidates.length;
+  setSubtitleStatus('Loading subtitle ' + label + '…');
+  fetchOsCandidate(subCandidateIdx)
+    .then(function(text) { return putVttToWorker(srtToVtt(text), 'Subtitle ' + label + ' loaded ✓'); })
+    .catch(function() { setSubtitleStatus('That version failed — tap "Other sub" again for the next one.'); });
 }
 
 function loadSubtitleText(text, label) {
@@ -4240,10 +4303,16 @@ function loadFarsiFromOpenSubtitles(id, type, season, episode) {
         return (parseFloat(b.SubRating) || 0) - (parseFloat(a.SubRating) || 0) ||
                (parseInt(b.SubDownloadsCnt, 10) || 0) - (parseInt(a.SubDownloadsCnt, 10) || 0);
       });
-      var dl = list[0] && list[0].SubDownloadLink;
-      if (!dl) throw new Error('no-link');
-      return fetch(dl);
-    })
+      subCandidates = list;
+      subCandidateIdx = 0;
+      return fetchOsCandidate(0);
+    });
+}
+
+function fetchOsCandidate(idx) {
+  var cand = subCandidates[idx];
+  if (!cand || !cand.SubDownloadLink) return Promise.reject(new Error('no-link'));
+  return fetch(cand.SubDownloadLink)
     .then(function(r){ if (!r.ok) throw new Error('os-download'); return r.arrayBuffer(); })
     .then(gunzipBuffer)
     .then(decodeSubtitleBuffer);
@@ -4277,10 +4346,16 @@ function loadExternalFarsiSubtitles(id, type, season, episode) {
   // VidLink renders the injected Persian subtitle inside its own player — don't double the overlay.
   if (currentPlayerSource === 'vidlink') {
     externalSubtitles = [];
+    lastVidlinkVtt = '';
+    subCandidates = [];
+    subCandidateIdx = 0;
+    subFileNonce = 0;
+    lastKnownPlayerTime = 0;
+    refreshSubtitleButtons();
     setSubtitleStatus('Loading Persian subtitles into the player…');
     var cacheDone = function(text) {
       return cacheSubtitleToWorker(text).then(function() {
-        setSubtitleStatus('Persian subtitles are in the player — turn on via the CC icon.');
+        setSubtitleStatus('Persian subtitles are in the player — turn on via the CC icon. Out of sync? Use −2s/+2s or "Other sub".');
       });
     };
     loadFarsiFromOpenSubtitles(id, type, season, episode)
@@ -4357,6 +4432,7 @@ window.addEventListener('message', function(ev) {
       updateDockProgress(current, duration, p);
       setDockStatus(status === 'playing' ? 'Playing' : 'Playing', false);
       var id = document.getElementById('tmdbId').value;
+      if (current > 0) lastKnownPlayerTime = current;
       // The embed posts real playback time — that signal wins; stop the fallback clock.
       if (current > 0 && subtitleClockRunning) {
         subtitleClockRunning = false;
