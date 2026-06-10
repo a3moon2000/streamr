@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head><title>VidLux fullscreen test</title>
+<style>
+ body{margin:0;background:#111;color:#fff;font-family:sans-serif}
+ .case{padding:10px 8px 2px;font-size:15px;font-weight:600}
+ .hint{color:#999;font-size:12px;padding:0 8px 6px;font-weight:400}
+ iframe{width:96vw;height:42vh;border:2px solid #555;display:block;margin:0 auto}
+</style>
+</head>
+<body>
+<div class="case">A — VidLux, fullscreen ALLOWED <span class="hint">(current behaviour)</span></div>
+<iframe sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen src="https://vidlux.online/embed/movie/27205"></iframe>
+
+<div class="case">B — VidLux, fullscreen BLOCKED <span class="hint">(player's own fullscreen disabled)</span></div>
+<iframe sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; picture-in-picture; encrypted-media" src="https://vidlux.online/embed/movie/27205"></iframe>
+</body>
+</html>
