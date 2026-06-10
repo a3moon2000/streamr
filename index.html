@@ -500,6 +500,12 @@
       opacity: 1; transform: none; pointer-events: auto;
     }
     body.player-mode .player-title-bar.idle-hide { opacity: 0; pointer-events: none; }
+    /* On phones the header and bottom nav are hidden in player-mode and taps land inside the
+       iframe (so the parent can never un-hide an idle-hidden bar). Keep the ✕ Close bar
+       permanently visible — it is the only way back to the app. */
+    @media (max-width: 640px) {
+      body.player-mode .player-title-bar.idle-hide { opacity: 1; pointer-events: auto; }
+    }
     body.player-mode .prog-strip { display: none !important; }
     .dock-progress { height: 3px; background: #2a2a2a; transition: opacity 0.35s ease, transform 0.35s ease; }
     .dock-progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 1s linear; border-radius: 0 2px 2px 0; }
@@ -2514,6 +2520,9 @@ var playerLoadTimer = null, playerGotProgress = false, playerReadyMarked = false
 // True once the user explicitly picks a source (↻ / selects). Stops the load watchdog from
 // auto-switching away — e.g. VidLink may not post progress events while playing fine.
 var userPinnedSource = false;
+// True while the player owns one history entry, so the iOS swipe-back / Android back
+// gesture closes the player instead of exiting the installed app.
+var playerHistoryArmed = false;
 var CINEZO_ORIGIN = 'https://player.cinezo.live';
 var playerIdleTimer = null, subtitlesVisible = true, subtitleSizeIdx = 1;
 var tvHubPage = 1, tvHubShowId = null, tvHubShowTitle = '', tvHubGenre = 0;
@@ -3742,6 +3751,9 @@ function loadPlayer(id, type, s, e, progress, title) {
   document.getElementById('playerWrap').classList.add('open');
   document.getElementById('ctrlBar').classList.add('on');
   document.body.classList.add('player-mode');
+  if (!playerHistoryArmed) {
+    try { history.pushState({ streamrPlayer: true }, ''); playerHistoryArmed = true; } catch(e) {}
+  }
   document.getElementById('heroSection').style.display = 'none';
   document.getElementById('playerTitleBar').classList.add('on');
   updatePlayerChrome(type, s, e, title || (type + ' #' + id));
@@ -3802,13 +3814,27 @@ function loadPlayer(id, type, s, e, progress, title) {
   }
 }
 
+window.addEventListener('popstate', function() {
+  // Back gesture / back button while watching → close the player, stay in the app.
+  if (playerHistoryArmed) {
+    playerHistoryArmed = false;
+    if (document.body.classList.contains('player-mode')) goHome();
+  }
+});
+
 function goHome() {
   clearPlayerLoadWatch();
   playerGotProgress = false;
   playerReadyMarked = false;
   playerSourceFailCount = 0;
   clearTimeout(playerIdleTimer);
+  // Remove the iframe FIRST — that deletes the embed's polluted history entries — then
+  // consume the player's own entry so the next back gesture exits the app normally.
   document.getElementById('playerInner').innerHTML = '';
+  if (playerHistoryArmed) {
+    playerHistoryArmed = false;
+    try { history.back(); } catch(e) {}
+  }
   lastPlayerRequest = null;
   externalSubtitles = [];
   externalSubtitleLast = '';
