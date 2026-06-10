@@ -6088,7 +6088,10 @@ function showUpdateBanner(worker) {
 }
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('sw.js').then(function(reg) {
+    // updateViaCache:'none' forces the browser to fetch sw.js fresh every check, so a new
+    // deploy is actually discovered (cached sw.js was why the banner only ever showed once).
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function(reg) {
+      function check() { reg.update().catch(function(){}); }
       if (reg.waiting && navigator.serviceWorker.controller) showUpdateBanner(reg.waiting);
       reg.addEventListener('updatefound', function() {
         var worker = reg.installing;
@@ -6097,6 +6100,11 @@ if ('serviceWorker' in navigator) {
           if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(worker);
         });
       });
+      // Actively re-check for new versions: when the app is reopened/refocused (installed
+      // PWAs rarely cold-load) and on a 30-min heartbeat while open.
+      document.addEventListener('visibilitychange', function() { if (!document.hidden) check(); });
+      window.addEventListener('focus', check);
+      setInterval(check, 30 * 60 * 1000);
     }).catch(function(){});
     var refreshed = false;
     navigator.serviceWorker.addEventListener('controllerchange', function() {
