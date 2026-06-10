@@ -3744,11 +3744,36 @@ function sizeMobilePlayer() {
   document.documentElement.style.setProperty('--player-mobile-height', target + 'px');
 }
 
+// Cineby is a clean, maintained player but can't be embedded (X-Frame-Options: DENY), so we
+// open the exact title in a new tab and keep Streamr as the discovery/history layer.
+function cinebyUrl(id, type, s, e) {
+  return type === 'tv'
+    ? 'https://www.cineby.at/tv/' + id + '/' + (s || 1) + '/' + (e || 1)
+    : 'https://www.cineby.at/movie/' + id;
+}
+function openInCineby(id, type, s, e, title) {
+  var h = getHistory(), key = type + '_' + id, idx = h.findIndex(function(x){ return x.key === key; });
+  var entry = { key:key, id:id, type:type, s:s||1, e:e||1, title:title||(idx>=0?h[idx].title:''), ts:0, dur:0, pct:0, opened:true, at:Date.now() };
+  if (idx >= 0) { if (!title) entry.title = h[idx].title; h[idx] = entry; } else { h.unshift(entry); }
+  historyMem = h.slice(0, 30);
+  flushHistoryStore(historyMem);
+  renderCW();
+  if (type === 'tv') saveEpRecord(id, entry.s, entry.e, 0, 0);
+  showToast('Opening in Cineby…');
+  window.open(cinebyUrl(id, type, s, e), '_blank', 'noopener');
+}
+
 function loadPlayer(id, type, s, e, progress, title) {
   id   = id   || document.getElementById('tmdbId').value.trim();
   type = type || currentType;
   s    = s    || document.getElementById('season').value  || 1;
   e    = e    || document.getElementById('episode').value || 1;
+  if (!id) return;
+  openInCineby(id, type, s, e, title);
+  return;
+}
+
+function loadPlayerLegacyEmbed(id, type, s, e, progress, title) {
   if (!id) return;
   try { sessionStorage.setItem('streamr_scroll_y', String(window.scrollY)); } catch(e) {}
   lastPlayerRequest = { id: id, type: type, s: s, e: e, progress: progress || 0, title: title || '' };
@@ -4686,7 +4711,7 @@ function cwThumbHTML(item) {
 function renderCW() {
   var h = getHistory().filter(function(item){
     if (isTitleHidden(item.id, item.type)) return false;
-    return hasMeaningfulProgress(item);
+    return hasMeaningfulProgress(item) || item.opened;
   }).sort(function(a, b) { return (b.at || 0) - (a.at || 0); });
   var sec = document.getElementById('continueSection');
   var grid = document.getElementById('cwGrid');
