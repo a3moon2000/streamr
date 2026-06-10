@@ -2575,6 +2575,7 @@ var playerHistoryArmed = false;
 // cache-bust the sub_file URL after each re-upload, and the last reported playback time
 // (so a player reload can resume close to where the user was).
 var lastVidlinkVtt = '', subCandidates = [], subCandidateIdx = 0, subFileNonce = 0, lastKnownPlayerTime = 0;
+var subAutoMatched = false; // one auto sync-correction per title
 var CINEZO_ORIGIN = 'https://player.cinezo.live';
 var playerIdleTimer = null, subtitlesVisible = true, subtitleSizeIdx = 1;
 var tvHubPage = 1, tvHubShowId = null, tvHubShowTitle = '', tvHubGenre = 0;
@@ -4116,6 +4117,71 @@ function adjustVidlinkSubs(shiftSec, rate, label) {
 function fixSubsRunningFast() { adjustVidlinkSubs(0, 25 / 23.976, 'Slowed subtitles down'); }
 function fixSubsRunningSlow() { adjustVidlinkSubs(0, 23.976 / 25, 'Sped subtitles up'); }
 
+/* ---- Automatic subtitle sync matching ----
+   OpenSubtitles metadata includes each candidate's final timestamp (SubLastTS), and the
+   player reports the video's duration. A subtitle whose span doesn't fit the runtime is
+   timed for a different cut: either swap to the best-fitting candidate, or — when the
+   span/runtime ratio equals a framerate ratio (23.976↔25) — retime the current file.
+   Runs once per title, early in playback, automatically. */
+function hmsToSeconds(t) {
+  var m = String(t || '').match(/(\d+):(\d+):(\d+)/);
+  return m ? (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) : 0;
+}
+function vttEndSeconds(vtt) {
+  var last = 0;
+  String(vtt || '').replace(/(\d{2}):(\d{2}):(\d{2})\.(\d{3})/g, function(m, h, mn, s, ms) {
+    var t = (+h) * 3600 + (+mn) * 60 + (+s) + (+ms) / 1000;
+    if (t > last) last = t;
+    return m;
+  });
+  return last;
+}
+// A sub fits if it ends no later than ~20s after the video and no more than 15min before
+// the end (credits gap).
+function subFitsDuration(endSec, duration) {
+  var diff = duration - endSec;
+  return diff >= -20 && diff <= 900;
+}
+function candidateEndMedian() {
+  var ends = subCandidates.map(function(c){ return hmsToSeconds(c.SubLastTS); })
+    .filter(function(s){ return s > 0; }).sort(function(a,b){ return a - b; });
+  if (ends.length < 3) return 0; // need a real cluster to trust
+  return ends[Math.floor(ends.length / 2)];
+}
+function evaluateSubtitleMatch(duration) {
+  if (subAutoMatched || currentPlayerSource !== 'vidlink') return;
+  if (!duration || duration < 600 || !lastVidlinkVtt) return;
+  if (lastKnownPlayerTime > 240) { subAutoMatched = true; return; } // too late — don't yank mid-film
+  var curEnd = vttEndSeconds(lastVidlinkVtt);
+  if (!curEnd) return;
+  subAutoMatched = true;
+  // Confident drift case: the current file's end deviates from the candidate-cluster median
+  // by exactly a framerate ratio. (Duration alone can't catch this — a few minutes of drift
+  // hides inside the normal credits gap.)
+  var median = candidateEndMedian();
+  if (median && Math.abs(curEnd - median) > 120) {
+    var r = curEnd / median;
+    if (Math.abs(r - 23.976 / 25) < 0.008) { adjustVidlinkSubs(0, 25 / 23.976, 'Auto-fixed subtitle speed'); return; }
+    if (Math.abs(r - 25 / 23.976) < 0.008) { adjustVidlinkSubs(0, 23.976 / 25, 'Auto-fixed subtitle speed'); return; }
+  }
+  if (subFitsDuration(curEnd, duration)) return; // fits the runtime — leave it alone
+  // Grossly wrong cut: pick the candidate whose final timestamp best fits this runtime.
+  var bestIdx = -1, bestDiff = Infinity;
+  for (var i = 0; i < subCandidates.length; i++) {
+    if (i === subCandidateIdx) continue;
+    var endSec = hmsToSeconds(subCandidates[i].SubLastTS);
+    if (!endSec || !subFitsDuration(endSec, duration)) continue;
+    var diff = Math.abs(duration - endSec);
+    if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+  }
+  if (bestIdx < 0) return; // nothing better — leave it to the manual chips
+  subCandidateIdx = bestIdx;
+  setSubtitleStatus('Auto-matching subtitles to this video…');
+  fetchOsCandidate(bestIdx)
+    .then(function(text) { return putVttToWorker(srtToVtt(text), 'Subtitles auto-matched to the video ✓'); })
+    .catch(function() { setSubtitleStatus('Auto-match failed — tap "Other sub" to switch manually.'); });
+}
+
 // Drift usually means the subtitle was made for a different cut — swapping versions is the
 // real cure. Cycles through the OpenSubtitles Persian candidates for this title.
 function tryAnotherSubtitle() {
@@ -4351,6 +4417,7 @@ function loadExternalFarsiSubtitles(id, type, season, episode) {
     subCandidateIdx = 0;
     subFileNonce = 0;
     lastKnownPlayerTime = 0;
+    subAutoMatched = false;
     refreshSubtitleButtons();
     setSubtitleStatus('Loading Persian subtitles into the player…');
     var cacheDone = function(text) {
@@ -4433,6 +4500,7 @@ window.addEventListener('message', function(ev) {
       setDockStatus(status === 'playing' ? 'Playing' : 'Playing', false);
       var id = document.getElementById('tmdbId').value;
       if (current > 0) lastKnownPlayerTime = current;
+      if (duration > 0) evaluateSubtitleMatch(duration);
       // The embed posts real playback time — that signal wins; stop the fallback clock.
       if (current > 0 && subtitleClockRunning) {
         subtitleClockRunning = false;
