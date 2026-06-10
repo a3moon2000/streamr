@@ -6162,12 +6162,39 @@ function showUpdateBanner(worker) {
   b.onclick = function() { b.disabled = true; b.textContent = 'Updating…'; worker.postMessage('skipWaiting'); };
   document.body.appendChild(b);
 }
+// App-content update check. The SW-update path only fires when sw.js itself changes, but
+// most deploys only touch index.html — so we also compare the server's ETag for index.html
+// against the one captured at load. When it differs, the app file changed: show the banner
+// and reload (the SW is network-first, so the reload fetches the new version).
+var appEtag = null;
+function headAppVersion() {
+  return fetch('index.html', { method: 'HEAD', cache: 'no-store' })
+    .then(function(r) { return r.headers.get('ETag') || r.headers.get('Last-Modified') || ''; })
+    .catch(function() { return null; });
+}
+function showReloadBanner() {
+  if (document.getElementById('swUpdateBanner')) return;
+  var b = document.createElement('button');
+  b.id = 'swUpdateBanner'; b.type = 'button';
+  b.textContent = 'Update ready — tap to refresh';
+  b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(74px + env(safe-area-inset-bottom,0px));z-index:400;padding:12px 20px;border-radius:22px;border:none;background:var(--accent);color:#fff;font-family:var(--sans);font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 8px 28px rgba(0,0,0,0.5);';
+  b.onclick = function() { b.disabled = true; b.textContent = 'Updating…'; location.reload(); };
+  document.body.appendChild(b);
+}
+function checkAppVersion() {
+  // Don't interrupt an active watch session with a reload prompt.
+  if (document.body.classList.contains('player-mode')) return;
+  headAppVersion().then(function(tag) {
+    if (!tag) return;
+    if (appEtag === null) { appEtag = tag; return; }
+    if (tag !== appEtag) showReloadBanner();
+  });
+}
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    // updateViaCache:'none' forces the browser to fetch sw.js fresh every check, so a new
-    // deploy is actually discovered (cached sw.js was why the banner only ever showed once).
+    headAppVersion().then(function(tag) { if (tag) appEtag = tag; });
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function(reg) {
-      function check() { reg.update().catch(function(){}); }
+      function check() { reg.update().catch(function(){}); checkAppVersion(); }
       if (reg.waiting && navigator.serviceWorker.controller) showUpdateBanner(reg.waiting);
       reg.addEventListener('updatefound', function() {
         var worker = reg.installing;
@@ -6176,8 +6203,8 @@ if ('serviceWorker' in navigator) {
           if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(worker);
         });
       });
-      // Actively re-check for new versions: when the app is reopened/refocused (installed
-      // PWAs rarely cold-load) and on a 30-min heartbeat while open.
+      // Re-check whenever the app is reopened/refocused (installed PWAs rarely cold-load)
+      // and on a 30-min heartbeat while open.
       document.addEventListener('visibilitychange', function() { if (!document.hidden) check(); });
       window.addEventListener('focus', check);
       setInterval(check, 30 * 60 * 1000);
