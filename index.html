@@ -566,6 +566,20 @@
     .dock-chip:hover:not(:disabled) { border-color: var(--text2); color: var(--text); }
     .dock-chip:disabled { opacity: 0.38; cursor: default; }
     .dock-chip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+    /* Advanced subtitle chips live behind the ⋯ chip to keep the dock simple. */
+    .sub-adv { display: none; }
+    .sub-adv.on { display: contents; }
+    /* One-tap play straight from a card (mobile always, where there is no hover). */
+    .card-play {
+      position: absolute; bottom: 8px; right: 8px; z-index: 3;
+      width: 42px; height: 42px; border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.5); background: rgba(0,0,0,0.62);
+      color: #fff; display: none; align-items: center; justify-content: center;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .card-play svg { width: 16px; height: 16px; fill: #fff; margin-left: 2px; }
+    .card-play:active { transform: scale(0.92); }
+    @media (max-width: 640px) { .card-play { display: flex; } }
     .dock-resume {
       font-size: 10px; color: var(--accent); font-family: var(--mono); font-weight: 700;
       padding: 2px 8px; border-radius: 10px; background: var(--accent-bg); white-space: nowrap;
@@ -2066,12 +2080,15 @@
       <span class="dock-sub-status" id="subtitleStatus">Persian subtitles load automatically when you play</span>
       <input type="file" id="subUpload" accept=".srt,.vtt" hidden onchange="handleSubtitleUpload(this)">
       <button class="dock-chip" id="subToggleBtn" type="button" onclick="toggleSubtitlesVisible()" aria-label="Toggle subtitles">Subs on</button>
-      <button class="dock-chip" id="subSizeBtn" type="button" onclick="cycleSubtitleSize()" aria-label="Subtitle size">Size M</button>
-      <button class="dock-chip" type="button" onclick="document.getElementById('subUpload').click()">Upload .srt</button>
-      <button class="dock-chip" id="subClockBtn" type="button" onclick="toggleSubtitleClock()" disabled>Start subs</button>
       <button class="dock-chip" id="subBackBtn" type="button" onclick="syncSubtitle(-2)" disabled>−2s</button>
       <button class="dock-chip" id="subForwardBtn" type="button" onclick="syncSubtitle(2)" disabled>+2s</button>
-      <button class="dock-chip" type="button" onclick="openFarsiSubtitleSearch()">Find subs</button>
+      <button class="dock-chip" id="subMoreBtn" type="button" onclick="toggleSubAdvanced()" aria-label="More subtitle options" aria-expanded="false">⋯</button>
+      <span class="sub-adv" id="subAdvanced">
+        <button class="dock-chip" id="subClockBtn" type="button" onclick="toggleSubtitleClock()" disabled>Start subs</button>
+        <button class="dock-chip" id="subSizeBtn" type="button" onclick="cycleSubtitleSize()" aria-label="Subtitle size">Size M</button>
+        <button class="dock-chip" type="button" onclick="document.getElementById('subUpload').click()">Upload .srt</button>
+        <button class="dock-chip" type="button" onclick="openFarsiSubtitleSearch()">Find subs</button>
+      </span>
     </div>
   </div>
   <div class="prog-strip" id="progStrip">
@@ -2273,6 +2290,19 @@
     <button class="scroll-arrow right" onclick="scrollRow('persianRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
 
+  <!-- Persian TV -->
+  <div class="sec-header">
+    <div class="sec-title">Persian Series</div>
+    <div class="sec-count" id="persianTvCount"></div>
+    <div class="sec-line"></div>
+    <div class="sec-seeall" onclick="openBrowse('persiantv')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+  </div>
+  <div class="scroll-wrap">
+    <button class="scroll-arrow left" onclick="scrollRow('persianTvRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="trending-row" id="persianTvRow"></div>
+    <button class="scroll-arrow right" onclick="scrollRow('persianTvRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </div>
+
   <!-- Anime -->
   <div class="sec-header scroll-anchor" id="navAnime">
     <div class="sec-title">Anime</div>
@@ -2297,6 +2327,19 @@
     <button class="scroll-arrow left" onclick="scrollRow('kdramaRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
     <div class="trending-row" id="kdramaRow"></div>
     <button class="scroll-arrow right" onclick="scrollRow('kdramaRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </div>
+
+  <!-- Turkish Drama -->
+  <div class="sec-header">
+    <div class="sec-title">Turkish Drama</div>
+    <div class="sec-count" id="turkishCount"></div>
+    <div class="sec-line"></div>
+    <div class="sec-seeall" onclick="openBrowse('turkish')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+  </div>
+  <div class="scroll-wrap">
+    <button class="scroll-arrow left" onclick="scrollRow('turkishRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="trending-row" id="turkishRow"></div>
+    <button class="scroll-arrow right" onclick="scrollRow('turkishRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
 
   <!-- Movies -->
@@ -2857,7 +2900,7 @@ function refreshAfterHide() {
   renderPicks(TV, 'tv', 'tvGrid');
   if (TMDB_KEY) {
     fetchTrending(); fetchTopRated(); fetchNowPlaying();
-    fetch4K(); fetchBollywood(); fetchPersian(); fetchAnime(); fetchKDrama();
+    fetch4K(); fetchBollywood(); fetchPersian(); fetchPersianTV(); fetchAnime(); fetchKDrama(); fetchTurkish();
   }
   renderHiddenTitlesList();
   if (document.getElementById('browseOverlay').classList.contains('on')) {
@@ -3287,12 +3330,15 @@ function applyPlayerEpGridState(entry) {
   var hp = entry.pct || 0;
   var buttons = grid.querySelectorAll('.ep-btn[data-ep]');
   if (!buttons.length) return false;
+  var emSn = parseInt(document.getElementById('season').value, 10);
+  var em = getShowEpMap(entry.id);
   buttons.forEach(function(btn) {
     var ep = parseInt(btn.getAttribute('data-ep'), 10);
     if (!ep) return;
     btn.classList.remove('watched', 'done', 'current');
-    var done = hs === parseInt(document.getElementById('season').value, 10) && ep < he;
-    var current = hs === parseInt(document.getElementById('season').value, 10) && ep === he;
+    var er = em['s' + emSn + 'e' + ep];
+    var done = (hs === emSn && ep < he) || (er && (er.pct || 0) >= 90);
+    var current = hs === emSn && ep === he;
     var completed = current && hp >= 90;
     if (done || completed) btn.classList.add('watched');
     if (completed) btn.classList.add('done');
@@ -3326,8 +3372,10 @@ function renderEpisodeButtons(showId, season, episodes, title, clickFn) {
   var he = hist ? parseInt(hist.e, 10) : 0;
   var hp = hist ? (hist.pct || 0) : 0;
   var sn = parseInt(season, 10);
+  var em = getShowEpMap(showId);
   return episodes.map(function(ep) {
-    var done = hs === sn && ep.episode_number < he;
+    var er = em['s' + sn + 'e' + ep.episode_number];
+    var done = (hs === sn && ep.episode_number < he) || (er && (er.pct || 0) >= 90);
     var current = hs === sn && ep.episode_number === he;
     var completed = current && hp >= 90;
     var watched = done || completed;
@@ -3925,6 +3973,15 @@ function applySubtitleSize() {
   if (btn) btn.textContent = 'Size ' + SUB_SIZE_LABELS[subtitleSizeIdx];
 }
 
+function toggleSubAdvanced() {
+  var adv = document.getElementById('subAdvanced');
+  var btn = document.getElementById('subMoreBtn');
+  if (!adv) return;
+  var on = adv.classList.toggle('on');
+  if (btn) btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+  bumpPlayerIdle();
+}
+
 function toggleSubtitlesVisible() {
   subtitlesVisible = !subtitlesVisible;
   try { localStorage.setItem('streamr_subs_on', subtitlesVisible ? '1' : '0'); } catch(e) {}
@@ -4376,9 +4433,33 @@ function getHistory() {
 function getHistoryEntry(id, type) {
   return getHistory().find(function(x) { return x.key === type + '_' + id; });
 }
+
+/* Per-episode progress store. The main history keeps ONE pointer record per show (drives
+   Continue Watching + default resume); this map remembers every episode's own position so
+   rewatching an old episode no longer erases progress on the current one. */
+var EPK = 'streamr_ep_v1';
+var epMem = null;
+function getEpStore() {
+  if (epMem) return epMem;
+  try { epMem = JSON.parse(localStorage.getItem(EPK)) || {}; } catch(e) { epMem = {}; }
+  return epMem;
+}
+function getShowEpMap(showId) { return getEpStore()['tv_' + showId] || {}; }
+function getEpRecord(showId, s, e) {
+  return getShowEpMap(showId)['s' + (parseInt(s,10)||1) + 'e' + (parseInt(e,10)||1)] || null;
+}
+function saveEpRecord(showId, s, e, ts, pct) {
+  var store = getEpStore(), k = 'tv_' + showId;
+  if (!store[k]) store[k] = {};
+  store[k]['s' + (parseInt(s,10)||1) + 'e' + (parseInt(e,10)||1)] = { ts: ts || 0, pct: pct || 0, at: Date.now() };
+}
 function getResumeProgress(hist, type, s, e) {
   if (!hist) return 0;
   if (type === 'tv') {
+    // Per-episode record first: any episode resumes at its own position (unless finished).
+    var er = hist.id ? getEpRecord(hist.id, s, e) : null;
+    if (er && (er.pct || 0) < 92 && ((er.pct || 0) > 2 || (er.ts || 0) > 30)) return er.ts || 0;
+    if (er && (er.pct || 0) >= 92) return 0;
     if (parseInt(hist.s, 10) === parseInt(s, 10) && parseInt(hist.e, 10) === parseInt(e, 10) && ((hist.pct || 0) > 2 || (hist.ts || 0) > 0)) {
       return hist.ts || 0;
     }
@@ -4400,6 +4481,7 @@ function shouldPersistHistory(key, entry) {
 function flushHistoryStore(h) {
   historyMem = (h || historyMem || getHistory()).slice(0, 30);
   try { localStorage.setItem(HK, JSON.stringify(historyMem)); } catch(e) {}
+  if (epMem) { try { localStorage.setItem(EPK, JSON.stringify(epMem)); } catch(e) {} }
 }
 function scheduleHistoryFlush() {
   clearTimeout(historyWriteTimer);
@@ -4427,6 +4509,7 @@ function saveHistory(id, type, s, e, title, ts, dur, pct, silent) {
   var isNew = idx < 0;
   var entry = { key:key, id:id, type:type, s:s||1, e:e||1, title:title||(idx>=0?h[idx].title:(type==='movie'?'Movie':'Show')+' #'+id), ts:ts||0, dur:dur||0, pct:pct||0, at:Date.now() };
   if (idx >= 0) { if (!title) entry.title = h[idx].title; h[idx] = entry; } else { h.unshift(entry); }
+  if (type === 'tv') saveEpRecord(id, entry.s, entry.e, entry.ts, entry.pct);
   historyMem = h.slice(0, 30);
   if (silent) {
     if (type === 'tv') updatePlayerEpGridInPlace(entry);
@@ -4691,7 +4774,7 @@ function refreshAllRows() {
   renderPicks(MOVIES, 'movie', 'movieGrid'); renderPicks(TV, 'tv', 'tvGrid');
   renderMyList();
   fetchTrending(); fetchTopRated(); fetchNowPlaying();
-  fetch4K(); fetchBollywood(); fetchPersian(); fetchAnime(); fetchKDrama();
+  fetch4K(); fetchBollywood(); fetchPersian(); fetchPersianTV(); fetchAnime(); fetchKDrama(); fetchTurkish();
 }
 function saveSettings() {
   var key = document.getElementById('tmdbKeyInput').value.trim();
@@ -4833,9 +4916,10 @@ function clearData() {
   if (confirm('Clear all watch history and cached data?')) {
     [HK, LK, RK_SEARCH, 'streamr_posters_v2', 'streamr_meta_v1', 'streamr_tmdb_key', 'streamr_subdl_key',
       HK_HIDDEN, 'streamr_hidden_meta_v1', 'streamr_hidden_genres', 'streamr_player_source', 'streamr_manual_2embed',
-      'streamr_autoplay', 'streamr_epsel', 'streamr_cinezo_server', 'streamr_quality_tip_seen', 'streamr_subs_on', 'streamr_sub_size', 'streamr_sub_worker'
+      'streamr_autoplay', 'streamr_epsel', 'streamr_cinezo_server', 'streamr_quality_tip_seen', 'streamr_subs_on', 'streamr_sub_size', 'streamr_sub_worker', 'streamr_ep_v1'
     ].forEach(function(k) { try { localStorage.removeItem(k); } catch(e) {} });
     historyMem = null;
+    epMem = null;
     lastHistorySnapshot = {};
     hiddenTitleMeta = {};
     TMDB_KEY = ''; SUBDL_KEY = ''; posterCache = {}; metaCache = {};
@@ -4970,6 +5054,7 @@ function posterCardHTML(item, i, opts) {
     + badge
     + camBadge
     + hideBtnHTML(item.id, type, title)
+    + '<button class="card-play" type="button" aria-label="Play" onclick="event.stopPropagation();quickPlay('+item.id+',\''+type+'\',\''+esc(title)+'\')"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>'
     + '</div>';
   var infoBlock = '<div class="trending-info"><div class="trending-title">'+htmlEsc(title)+'</div>'
     + '<div class="trending-meta">'+year+(rating?' · '+rating:'')+'</div></div>';
@@ -5045,6 +5130,8 @@ var browseCats = {
   uhd:        { title:'4K Ultra HD',        type:'movie', params:'primary_release_date.gte=2022-01-01&vote_count.gte=400&with_original_language=en' },
   bolly:      { title:'Bollywood Latest',   type:'movie', params:'with_original_language=hi&vote_count.gte=12', defaultSort:'primary_release_date.desc' },
   persian:    { title:'Persian Cinema',     type:'movie', params:'with_original_language=fa&vote_count.gte=3' },
+  persiantv:  { title:'Persian Series',     type:'tv',    params:'with_original_language=fa&vote_count.gte=2' },
+  turkish:    { title:'Turkish Drama',      type:'tv',    params:'with_original_language=tr&vote_count.gte=25' },
   anime:      { title:'Anime',              type:'tv',    params:'with_genres=16&with_original_language=ja&vote_count.gte=50' },
   kdrama:     { title:'Korean Drama',       type:'tv',    params:'with_original_language=ko&vote_count.gte=40' },
   popmovies:  { title:'Popular Movies',     type:'movie', params:'vote_count.gte=150&without_genres=27' },
@@ -5400,9 +5487,11 @@ function loadTVHubEpisodes(showId, season) {
     var he = hist ? parseInt(hist.e, 10) : 0;
     var hp = hist ? (hist.pct || 0) : 0;
     var title = tvHubShowTitle;
+    var em = getShowEpMap(showId);
     grid.innerHTML = d.episodes.map(function(ep) {
       var sn = parseInt(season, 10);
-      var done = hs === sn && ep.episode_number < he;
+      var er = em['s' + sn + 'e' + ep.episode_number];
+      var done = (hs === sn && ep.episode_number < he) || (er && (er.pct || 0) >= 90);
       var current = hs === sn && ep.episode_number === he;
       var completed = current && hp >= 90;
       var watched = done || completed;
@@ -5525,6 +5614,30 @@ function fetchKDrama() {
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
     document.getElementById('kdramaCount').textContent = 'top series';
     renderPosterRow(items, 'kdramaRow', {});
+  });
+}
+
+function fetchPersianTV() {
+  if (!TMDB_KEY) { rowNotice('persianTvRow', 'TMDB key required', 'Add your API key in Settings to load Persian series.'); return; }
+  skeletonRow('persianTvRow', 10);
+  // Persian / Farsi-language TV series (small catalog, low vote threshold)
+  tmdbFetch('/discover/tv?with_original_language=fa&sort_by=popularity.desc&vote_count.gte=2').then(function(data) {
+    if (!data || !data.results) { rowFailed('persianTvRow'); return; }
+    var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
+    document.getElementById('persianTvCount').textContent = items.length + ' series';
+    renderPosterRow(items, 'persianTvRow', {});
+  });
+}
+
+function fetchTurkish() {
+  if (!TMDB_KEY) { rowNotice('turkishRow', 'TMDB key required', 'Add your API key in Settings to load Turkish drama.'); return; }
+  skeletonRow('turkishRow', 10);
+  // Turkish-language TV (dizi)
+  tmdbFetch('/discover/tv?with_original_language=tr&sort_by=popularity.desc&vote_count.gte=25').then(function(data) {
+    if (!data || !data.results) { rowFailed('turkishRow'); return; }
+    var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
+    document.getElementById('turkishCount').textContent = 'top dizi';
+    renderPosterRow(items, 'turkishRow', {});
   });
 }
 
@@ -5980,8 +6093,10 @@ lazyLoad('nowPlayingRow', fetchNowPlaying);
 lazyLoad('uhdRow',        fetch4K);
 lazyLoad('bollyRow',      fetchBollywood);
 lazyLoad('persianRow',    fetchPersian);
+lazyLoad('persianTvRow',  fetchPersianTV);
 lazyLoad('animeRow',      fetchAnime);
 lazyLoad('kdramaRow',     fetchKDrama);
+lazyLoad('turkishRow',    fetchTurkish);
 lazyLoad('movieGrid',     function(){ renderPicks(MOVIES, 'movie', 'movieGrid'); });
 lazyLoad('tvGrid',        function(){ renderPicks(TV, 'tv', 'tvGrid'); });
 
