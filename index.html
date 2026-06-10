@@ -2079,6 +2079,7 @@
     <div class="dock-row dock-sub" id="dockSubRow">
       <span class="dock-sub-status" id="subtitleStatus">Persian subtitles load automatically when you play</span>
       <input type="file" id="subUpload" accept=".srt,.vtt" hidden onchange="handleSubtitleUpload(this)">
+      <button class="dock-chip" id="subAppBtn" type="button" onclick="loadAppOverlaySubs()" title="Load Persian subtitles as an overlay (if the player has none)">App subs</button>
       <button class="dock-chip" id="subToggleBtn" type="button" onclick="toggleSubtitlesVisible()" aria-label="Toggle subtitles">Subs on</button>
       <button class="dock-chip" id="subBackBtn" type="button" onclick="syncSubtitle(-2)" disabled>−2s</button>
       <button class="dock-chip" id="subForwardBtn" type="button" onclick="syncSubtitle(2)" disabled>+2s</button>
@@ -4448,6 +4449,20 @@ function loadExternalFarsiSubtitles(id, type, season, episode) {
       });
     return;
   }
+  // VidLux ships its OWN subtitle menu (incl. Persian), so do NOT auto-load our overlay —
+  // it would double up on screen. The user selects Persian in the player's CC menu; the
+  // "App subs" button loads our overlay only for a title the player lacks Persian for.
+  externalSubtitles = [];
+  resetSubtitleClock(true);
+  refreshSubtitleButtons();
+  setSubtitleStatus('Subtitles are in the player — tap its CC icon. No Persian there? Tap "App subs".');
+  return;
+}
+
+// Load our OpenSubtitles Persian overlay on demand (fallback when the player lacks Persian).
+function loadAppOverlaySubs() {
+  if (!lastPlayerRequest) return;
+  var id = lastPlayerRequest.id, type = lastPlayerRequest.type, season = lastPlayerRequest.s, episode = lastPlayerRequest.e;
   externalSubtitles = [];
   setSubtitleStatus('Searching Persian subtitles…');
   loadFarsiFromOpenSubtitles(id, type, season, episode)
