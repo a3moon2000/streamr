@@ -2058,7 +2058,7 @@
       <button class="dock-btn" type="button" onclick="togglePlayerPiP()" title="Picture in Picture" aria-label="Picture in picture">
         <svg viewBox="0 0 24 24"><path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>
       </button>
-      <button class="dock-btn" type="button" onclick="cyclePlayerSource()" title="Switch player source (Cinezo / backup)" aria-label="Switch player source">
+      <button class="dock-btn" type="button" onclick="cyclePlayerSource()" title="Switch player (Cinezo / VidLink)" aria-label="Switch player source">
         <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
       </button>
     </div>
@@ -2098,9 +2098,8 @@
         <div class="pref-group">
           <span class="pref-label">Source</span>
           <select class="pref-select" id="playerSource" onchange="setPlayerSource(this.value, true)">
-            <option value="vidlink">VidLink (Persian subs)</option>
             <option value="cinezo" selected>Cinezo (overlay subs)</option>
-            <option value="2embed">2Embed (backup)</option>
+            <option value="vidlink">VidLink (Persian subs)</option>
           </select>
         </div>
         <div class="pref-group">
@@ -2487,9 +2486,8 @@
     <div class="modal-field">
       <label>Default Player</label>
       <select class="pref-select" id="settingsPlayerSource" style="width:100%;max-width:none">
-        <option value="vidlink">VidLink (Persian subs, fullscreen-safe)</option>
         <option value="cinezo">Cinezo (overlay subs)</option>
-        <option value="2embed">2Embed (backup)</option>
+        <option value="vidlink">VidLink (Persian subs, fullscreen-safe)</option>
       </select>
       <div class="modal-hint"><strong>Cinezo</strong> is the reliable default (overlay Persian subs — use ⛶ for fullscreen). <strong>VidLink</strong> is experimental and may hang; if it does, Streamr auto-switches to Cinezo after ~8s.</div>
     </div>
@@ -2517,7 +2515,7 @@ var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var SUB_WORKER_DEFAULT = 'https://streamr-subs.akila-attribution.workers.dev';
 var SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
-var PLAYER_SOURCES = ['cinezo', 'vidlink', '2embed'];
+var PLAYER_SOURCES = ['cinezo', 'vidlink'];
 var CINEZO_SERVER_CYCLE = [''];
 var lastPlayerRequest = null;
 var subtitleClockBase = 0, subtitleClockStartedAt = 0, subtitleClockRunning = false, subtitleSyncOffset = 0, subtitleClockTimer = null;
@@ -3030,15 +3028,12 @@ document.addEventListener('click', function(e) {
 
 /* Player */
 function normalizePlayerSource(source) {
-  if (source === 'vidking') source = '2embed';
-  if (source === 'vidfast') source = 'cinezo';
+  if (source === 'vidking' || source === '2embed' || source === 'vidfast') source = 'cinezo';
   return PLAYER_SOURCES.indexOf(source) >= 0 ? source : 'cinezo';
 }
 
 function getPlayerSourceLabel(source) {
   if (source === 'vidlink') return 'VidLink';
-  if (source === 'cinezo') return 'Cinezo';
-  if (source === '2embed') return '2Embed';
   return 'Cinezo';
 }
 
@@ -3120,13 +3115,9 @@ function buildUrl(id, type, s, e, progress, forceAutoplay) {
     return czBase + '?' + cz.toString();
   }
 
-  if (source === '2embed') {
-    var unmuteQs = 'mute=false&muted=false&volume=1';
-    if (type === 'movie') return 'https://www.2embed.cc/embed/' + id + '?' + unmuteQs;
-    return 'https://www.2embed.cc/embedtv/' + id + '&s=' + (s || 1) + '&e=' + (e || 1) + '&' + unmuteQs;
-  }
-
-  return 'https://www.2embed.cc/embed/' + id;
+  return type === 'movie'
+    ? 'https://player.cinezo.live/embed/movie/' + id
+    : 'https://player.cinezo.live/embed/tv/' + id + '/' + (s || 1) + '/' + (e || 1);
 }
 
 function revealPlayerEmbed() {
@@ -3151,8 +3142,7 @@ function setPlayerSource(source, manual) {
   currentPlayerSource = source;
   try {
     localStorage.setItem('streamr_player_source', source);
-    if (manual && source === '2embed') localStorage.setItem('streamr_manual_2embed', '1');
-    else localStorage.removeItem('streamr_manual_2embed');
+    localStorage.removeItem('streamr_manual_2embed');
   } catch(e) {}
   var sourceEl = document.getElementById('playerSource');
   if (sourceEl && sourceEl.value !== currentPlayerSource) sourceEl.value = currentPlayerSource;
@@ -3168,7 +3158,7 @@ function updateProviderBadge() {
   var provider = document.getElementById('ptbProvider');
   if (!provider) return;
   provider.textContent = getPlayerSourceLabel(currentPlayerSource);
-  provider.classList.toggle('backup', currentPlayerSource === '2embed');
+  provider.classList.remove('backup');
 }
 
 function getCinezoServer() {
@@ -4742,12 +4732,9 @@ function initPlayerPrefs() {
   try {
     localStorage.removeItem('streamr_cinezo_server');
     var src = localStorage.getItem('streamr_player_source');
-    var manual2 = localStorage.getItem('streamr_manual_2embed');
     SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
-    // Cinezo is the reliable default. VidLink often hangs — only honour explicit 2Embed pin.
-    if (src === '2embed' && manual2 === '1') setPlayerSource('2embed', true);
-    else if (src === 'vidlink') setPlayerSource('cinezo');
-    else setPlayerSource('cinezo');
+    // Cinezo is the reliable default; VidLink is opt-in per session via ↻ or Settings.
+    setPlayerSource('cinezo');
     var ap = localStorage.getItem('streamr_autoplay');
     if (ap !== null) document.getElementById('autoPlay').checked = ap === '1';
     var ep = localStorage.getItem('streamr_epsel');
