@@ -12,7 +12,7 @@
   <meta name="theme-color" content="#141414">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -2669,7 +2669,14 @@ function fmt(sec) {
   var h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = Math.floor(sec%60);
   return h > 0 ? h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0') : m+':'+String(s).padStart(2,'0');
 }
-function esc(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+// Full HTML encoder for TMDB-sourced strings landing in innerHTML content.
+function htmlEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+// For strings inside onclick="fn('...')" attributes: HTML-encode (the parser decodes
+// entities before JS runs) plus JS single-quote escaping.
+function esc(s) { return htmlEsc(s).replace(/'/g, "\\'"); }
 
 var BASE_TITLE = 'Streamr';
 function setPageTitle(name) { document.title = name ? (name + ' · Streamr') : BASE_TITLE; }
@@ -2725,7 +2732,7 @@ function showRecentSearches(resultsEl) {
     + list.map(function(q) {
       return '<div class="sr-item" onclick="runRecentSearch(\''+esc(q)+'\')">'
         + '<div class="sr-placeholder" style="display:flex;align-items:center;justify-content:center;font-size:14px">&#128269;</div>'
-        + '<div class="sr-info"><div class="sr-title">'+q+'</div></div></div>';
+        + '<div class="sr-info"><div class="sr-title">'+htmlEsc(q)+'</div></div></div>';
     }).join('');
   resultsEl.classList.add('on');
 }
@@ -2941,7 +2948,7 @@ function doSearch(query, resultsEl) {
         var poster = r.poster_path ? '<img src="' + TMDB_IMG + 'w92' + r.poster_path + '" alt="">' : '<div class="sr-placeholder"></div>';
         return '<div class="sr-item" data-sr-id="' + r.id + '" data-sr-type="' + type + '">'
           + poster
-          + '<div class="sr-info"><div class="sr-title">' + title + '</div>'
+          + '<div class="sr-info"><div class="sr-title">' + htmlEsc(title) + '</div>'
           + '<div class="sr-meta">' + type.toUpperCase() + ' · ' + year + (r.vote_average ? ' · ★ ' + r.vote_average.toFixed(1) : '') + '</div></div>'
           + '<div class="sr-actions">'
           + '<button class="sr-btn play" type="button" onclick="playSearchResult(' + r.id + ',\'' + type + '\',\'' + esc(title) + '\')">Play</button>'
@@ -4053,8 +4060,11 @@ function loadSubtitleText(text, label) {
   externalSubtitles = parsed;
   resetSubtitleClock(true);
   refreshSubtitleButtons();
-  setSubtitleStatus((label || 'Persian subtitles') + ' loaded — they sync to the video automatically. If they drift, use −2s / +2s, or press Start subs.');
-  showSubtitleHint('Persian subtitles loaded ✓');
+  // Start timing immediately — no manual "Start subs" tap. If the embed posts real
+  // timeupdate events, those take over and the clock is stopped (see message handler).
+  startSubtitleClock();
+  setSubtitleStatus((label || 'Persian subtitles') + ' on. If they don’t match the video, use −2s / +2s.');
+  showSubtitleHint('Persian subtitles on ✓');
   cacheSubtitleToWorker(text);
 }
 
@@ -4290,6 +4300,12 @@ function farsiSubtitlesUnavailable() {
 var lastAutoAdvanceAt = 0;
 window.addEventListener('message', function(ev) {
   try {
+    // Only trust player messages while actually watching, and prefer messages coming from
+    // the player iframe itself. (Embeds nest sub-players, so a strict origin allowlist
+    // would break time sync; this still blocks forged events outside watch sessions.)
+    if (!document.body.classList.contains('player-mode')) return;
+    var pf = typeof getPlayerIframe === 'function' ? getPlayerIframe() : null;
+    if (!pf) return;
     var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
     if (!data || typeof data !== 'object') return;
     var msgType = data.type || data.event || '';
@@ -4324,6 +4340,12 @@ window.addEventListener('message', function(ev) {
       updateDockProgress(current, duration, p);
       setDockStatus(status === 'playing' ? 'Playing' : 'Playing', false);
       var id = document.getElementById('tmdbId').value;
+      // The embed posts real playback time — that signal wins; stop the fallback clock.
+      if (current > 0 && subtitleClockRunning) {
+        subtitleClockRunning = false;
+        if (subtitleClockTimer) { clearInterval(subtitleClockTimer); subtitleClockTimer = null; }
+        refreshSubtitleButtons();
+      }
       updateExternalSubtitle(current);
       if (id && current > 5) {
         saveHistory(id, currentType, document.getElementById('season').value, document.getElementById('episode').value, null, current, duration, p, true);
@@ -4470,7 +4492,7 @@ function renderCW() {
       + '<div class="cw-prog-bar"><div class="cw-prog-fill" style="width:'+p+'%"></div></div>'
       + '<div class="cw-hover"><div class="cw-play-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>'
       + '</div>'
-      + '<div class="cw-body"><div class="cw-title" onclick="openDetail(\''+esc(item.id)+'\',\''+item.type+'\',\''+esc(item.title)+'\')">'+item.title+'</div><div class="cw-meta">'+meta+'</div></div>'
+      + '<div class="cw-body"><div class="cw-title" onclick="openDetail(\''+esc(item.id)+'\',\''+item.type+'\',\''+esc(item.title)+'\')">'+htmlEsc(item.title)+'</div><div class="cw-meta">'+meta+'</div></div>'
       + '<div class="cw-actions">'
       + '<button class="btn-sm hi" onclick="loadPlayer(\''+esc(item.id)+'\',\''+item.type+'\',\''+item.s+'\',\''+item.e+'\','+item.ts+',\''+esc(item.title)+'\')">Resume</button>'
       + '<button class="btn-sm" onclick="loadPlayer(\''+esc(item.id)+'\',\''+item.type+'\',\''+item.s+'\',\''+item.e+'\',0,\''+esc(item.title)+'\')">Restart</button>'
@@ -4567,11 +4589,11 @@ function renderPicks(items, type, containerId) {
       + '<div class="pick-rating" id="rating_'+ck+'">'+(rating?'★ '+rating:'')+'</div>'
       + '</div>'
       + '<div class="pick-overview" id="ov_'+ck+'">'
-      + '<div class="pick-ov-title">'+item.title+'</div>'
+      + '<div class="pick-ov-title">'+htmlEsc(item.title)+'</div>'
       + '<div class="pick-ov-text" id="ovtext_'+ck+'">'+(overview||'')+'</div>'
       + '<div class="pick-ov-btn" onclick="event.stopPropagation();quickPlay('+item.id+',\''+type+'\',\''+esc(item.title)+'\')"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Watch</div>'
       + '</div>'
-      + '<div class="pick-info"><div class="pick-title">'+item.title+'</div><div class="pick-sub">'+item.year+(rating?' · ★ '+rating:'')+'</div></div>'
+      + '<div class="pick-info"><div class="pick-title">'+htmlEsc(item.title)+'</div><div class="pick-sub">'+item.year+(rating?' · ★ '+rating:'')+'</div></div>'
       + '</div>';
   }).join('');
   grid.classList.remove('grid-anim');
@@ -4913,8 +4935,8 @@ function showSpot(i) {
     + (year ? '<span class="sp-meta-txt">'+year+'</span>' : '')
     + '<span class="sp-meta-txt">&#128293; Trending</span>'
     + '</div>'
-    + '<h1 class="spotlight-title">'+title+'</h1>'
-    + '<p class="spotlight-overview">'+(s.overview||'')+'</p>'
+    + '<h1 class="spotlight-title">'+htmlEsc(title)+'</h1>'
+    + '<p class="spotlight-overview">'+htmlEsc(s.overview||'')+'</p>'
     + '<div class="spotlight-actions">'
     + '<button class="sp-btn play" onclick="quickPlay('+s.id+',\''+type+'\',\''+esc(title)+'\')"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Play</button>'
     + '<button class="sp-btn info" onclick="openDetail('+s.id+',\''+type+'\',\''+esc(title)+'\')"><svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>More Info</button>'
@@ -4962,7 +4984,7 @@ function posterCardHTML(item, i, opts) {
     + camBadge
     + hideBtnHTML(item.id, type, title)
     + '</div>';
-  var infoBlock = '<div class="trending-info"><div class="trending-title">'+title+'</div>'
+  var infoBlock = '<div class="trending-info"><div class="trending-title">'+htmlEsc(title)+'</div>'
     + '<div class="trending-meta">'+year+(rating?' · '+rating:'')+'</div></div>';
   var hoverBar = cardHoverBarHTML(item.id, type, title);
   if (opts.numbered) {
@@ -5220,7 +5242,7 @@ function tvHubCardHTML(item) {
     + '<div class="pick-poster" style="background:var(--surface2)">'
     + '<span class="poster-icon" style="font-size:28px">&#127909;</span>' + poster
     + '</div>'
-    + '<div class="trending-info"><div class="trending-title">'+title+'</div>'
+    + '<div class="trending-info"><div class="trending-title">'+htmlEsc(title)+'</div>'
     + (year ? '<div class="trending-meta">'+year+'</div>' : '')
     + '</div></div>';
 }
@@ -5618,7 +5640,7 @@ function openDetail(id, type, title) {
       + '<div class="detail-hero-grad"></div>'
       + '<button class="detail-close" onclick="closeDetail()">&#10005;</button>'
       + '<div class="detail-hero-content">'
-      + '<div class="detail-title">'+t+'</div>'
+      + '<div class="detail-title">'+htmlEsc(t)+'</div>'
       + '<div class="detail-meta">'
       + '<span class="sp-badge">'+type.toUpperCase()+'</span>'
       + (match ? '<span class="sp-match">'+match+'</span>' : '')
@@ -5638,22 +5660,22 @@ function openDetail(id, type, title) {
       + '<button class="sp-btn info" onclick="shareTitle(\''+esc(t)+'\','+id+',\''+type+'\')"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Share</button>'
       + '<button class="sp-btn info" onclick="hideTitle('+id+',\''+type+'\',\''+esc(t)+'\')"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2"><path d="M18 6 6 18M6 6l12 12"/></svg>Not Interested</button>'
       + '</div>'
-      + '<div class="detail-overview">'+(d.overview||'No description available.')+'</div>'
-      + (genres.length ? '<div class="detail-genres">'+genres.map(function(g){ return '<span class="detail-genre">'+g+'</span>'; }).join('')+'</div>' : '')
+      + '<div class="detail-overview">'+htmlEsc(d.overview||'No description available.')+'</div>'
+      + (genres.length ? '<div class="detail-genres">'+genres.map(function(g){ return '<span class="detail-genre">'+htmlEsc(g)+'</span>'; }).join('')+'</div>' : '')
       + (castArr.length ? '<div class="detail-info-label" style="margin-bottom:10px">Cast</div><div class="cast-row">'
           + castArr.map(function(c){
               var ph = c.profile_path
                 ? '<img class="cast-avatar" loading="lazy" decoding="async" src="'+TMDB_IMG+'w185'+c.profile_path+'" alt="">'
                 : '<div class="cast-avatar-ph">&#128100;</div>';
               return '<div class="cast-chip" onclick="openPerson('+c.id+',\''+esc(c.name)+'\')">'+ph
-                + '<div class="cast-name">'+c.name+'</div>'
-                + (c.character ? '<div class="cast-role">'+c.character+'</div>' : '')
+                + '<div class="cast-name">'+htmlEsc(c.name)+'</div>'
+                + (c.character ? '<div class="cast-role">'+htmlEsc(c.character)+'</div>' : '')
                 + '</div>';
             }).join('')
           + '</div>' : '')
       + '<div class="detail-info-grid">'
       + (d.vote_count ? '<div class="detail-info-item"><div class="detail-info-label">Votes</div><div class="detail-info-val">'+d.vote_count.toLocaleString()+'</div></div>' : '')
-      + (d.status ? '<div class="detail-info-item"><div class="detail-info-label">Status</div><div class="detail-info-val">'+d.status+'</div></div>' : '')
+      + (d.status ? '<div class="detail-info-item"><div class="detail-info-label">Status</div><div class="detail-info-val">'+htmlEsc(d.status)+'</div></div>' : '')
       + (d.original_language ? '<div class="detail-info-item"><div class="detail-info-label">Language</div><div class="detail-info-val">'+d.original_language.toUpperCase()+'</div></div>' : '')
       + '</div>';
 
@@ -5770,8 +5792,8 @@ function openPerson(id, name) {
 
     card.innerHTML = '<button class="person-close" onclick="closePerson()">&#10005;</button>'
       + '<div class="person-head">'+photo
-      + '<div class="person-info"><div class="person-name">'+(p.name||name)+'</div>'
-      + (p.known_for_department ? '<div class="person-dept">'+p.known_for_department+(p.birthday?' · born '+p.birthday.substring(0,4):'')+'</div>' : '')
+      + '<div class="person-info"><div class="person-name">'+htmlEsc(p.name||name)+'</div>'
+      + (p.known_for_department ? '<div class="person-dept">'+htmlEsc(p.known_for_department)+(p.birthday?' · born '+p.birthday.substring(0,4):'')+'</div>' : '')
       + (bio ? '<div class="person-bio">'+bio+'</div>' : '')
       + '</div></div>'
       + '<div class="person-body"><div class="detail-reco-label">Known For</div>'
@@ -5982,15 +6004,26 @@ lazyLoad('tvGrid',        function(){ renderPicks(TV, 'tv', 'tvGrid'); });
 })();
 
 // PWA service worker
+// Two-stage SW update: the new worker waits until the user taps the update banner, so a
+// mid-session takeover can never mix old page code with a new cache (the old stale-version bug).
+function showUpdateBanner(worker) {
+  if (document.getElementById('swUpdateBanner')) return;
+  var b = document.createElement('button');
+  b.id = 'swUpdateBanner'; b.type = 'button';
+  b.textContent = 'Update ready — tap to refresh';
+  b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(74px + env(safe-area-inset-bottom,0px));z-index:400;padding:12px 20px;border-radius:22px;border:none;background:var(--accent);color:#fff;font-family:var(--sans);font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 8px 28px rgba(0,0,0,0.5);';
+  b.onclick = function() { b.disabled = true; b.textContent = 'Updating…'; worker.postMessage('skipWaiting'); };
+  document.body.appendChild(b);
+}
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('sw.js').then(function(reg) {
-      if (reg.waiting) reg.waiting.postMessage('skipWaiting');
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdateBanner(reg.waiting);
       reg.addEventListener('updatefound', function() {
         var worker = reg.installing;
         if (!worker) return;
         worker.addEventListener('statechange', function() {
-          if (worker.state === 'installed' && navigator.serviceWorker.controller) worker.postMessage('skipWaiting');
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(worker);
         });
       });
     }).catch(function(){});
