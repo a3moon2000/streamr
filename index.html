@@ -5726,6 +5726,7 @@ function fetchTopRated() {
   tmdbFetch('/movie/top_rated').then(function(data) {
     if (!data || !data.results) { rowFailed('topRatedRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
+    items.sort(function(a, b) { return (b.release_date || '').localeCompare(a.release_date || ''); });
     document.getElementById('topRatedCount').textContent = 'all time';
     renderPosterRow(items, 'topRatedRow', {});
   });
