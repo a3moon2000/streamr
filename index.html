@@ -2727,6 +2727,11 @@ var MIND_FILTERS = [
   { key:'animation', label:'Animation' },
 ];
 
+/* Newest-first: curated lists auto-sort by year so the latest release always leads. */
+[FEATURED, MIND_BENDING, MOVIES, TV].forEach(function(arr) {
+  arr.sort(function(a, b) { return (b.year || 0) - (a.year || 0); });
+});
+
 /* Helpers */
 function fmt(sec) {
   if (!sec) return '0:00';
@@ -5414,14 +5419,15 @@ function browsePath(cat, page) {
     return cat.endpoint + '?page=' + page;
   }
   var sortBy;
-  if (browseSort === 'default') sortBy = cat.defaultSort || 'popularity.desc';
+  // Default = newest first across all discover categories (cat.defaultSort can still override).
+  if (browseSort === 'default') sortBy = cat.defaultSort || (cat.type === 'tv' ? 'first_air_date.desc' : 'primary_release_date.desc');
   else if (browseSort === 'newest') sortBy = (cat.type === 'tv' ? 'first_air_date.desc' : 'primary_release_date.desc');
   else if (browseSort === 'rating') sortBy = 'vote_average.desc';
   else sortBy = browseSort; // popularity.desc
   var p = '/discover/' + cat.type + '?sort_by=' + sortBy;
   if (cat.params) p += '&' + cat.params;
   if (browseSort === 'rating' && cat.params.indexOf('vote_count.gte') === -1) p += '&vote_count.gte=200';
-  if (browseSort === 'newest') p += (cat.type === 'tv' ? '&first_air_date.lte=' : '&primary_release_date.lte=') + today;
+  if (sortBy.indexOf('date.desc') > -1) p += (cat.type === 'tv' ? '&first_air_date.lte=' : '&primary_release_date.lte=') + today;
   p += '&page=' + page;
   return p;
 }
@@ -5731,6 +5737,7 @@ function fetchNowPlaying() {
   tmdbFetch('/movie/now_playing').then(function(data) {
     if (!data || !data.results) { rowFailed('nowPlayingRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
+    items.sort(function(a, b) { return (b.release_date || '').localeCompare(a.release_date || ''); });
     document.getElementById('nowPlayingCount').textContent = items.length + ' in cinemas';
     renderPosterRow(items, 'nowPlayingRow', {});
   });
@@ -5739,8 +5746,8 @@ function fetchNowPlaying() {
 function fetch4K() {
   if (!TMDB_KEY) { rowNotice('uhdRow', 'TMDB key required', 'Add your API key in Settings to load Ultra HD picks.'); return; }
   skeletonRow('uhdRow', 10);
-  // No 4K flag in TMDB. Approximate with recent high-popularity blockbusters most likely to have 4K sources.
-  tmdbFetch('/discover/movie?sort_by=popularity.desc&primary_release_date.gte=2022-01-01&vote_count.gte=400&with_original_language=en').then(function(data) {
+  // No 4K flag in TMDB. Recent vote-heavy blockbusters most likely to have 4K sources, newest first.
+  tmdbFetch('/discover/movie?sort_by=primary_release_date.desc&primary_release_date.gte=2022-01-01&primary_release_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=400&with_original_language=en').then(function(data) {
     if (!data || !data.results) { rowFailed('uhdRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
     document.getElementById('uhdCount').textContent = 'premium quality';
@@ -5763,8 +5770,8 @@ function fetchBollywood() {
 function fetchPersian() {
   if (!TMDB_KEY) { rowNotice('persianRow', 'TMDB key required', 'Add your API key in Settings to load Persian cinema.'); return; }
   skeletonRow('persianRow', 10);
-  // Persian / Farsi-language films, by popularity (smaller catalog, lower vote threshold)
-  tmdbFetch('/discover/movie?with_original_language=fa&sort_by=popularity.desc&vote_count.gte=3').then(function(data) {
+  // Persian / Farsi-language films, newest first (smaller catalog, lower vote threshold)
+  tmdbFetch('/discover/movie?with_original_language=fa&sort_by=primary_release_date.desc&primary_release_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=3').then(function(data) {
     if (!data || !data.results) { rowFailed('persianRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
     document.getElementById('persianCount').textContent = items.length + ' titles';
@@ -5775,8 +5782,8 @@ function fetchPersian() {
 function fetchAnime() {
   if (!TMDB_KEY) { rowNotice('animeRow', 'TMDB key required', 'Add your API key in Settings to load Anime.'); return; }
   skeletonRow('animeRow', 10);
-  // Japanese animation TV (genre 16 = Animation)
-  tmdbFetch('/discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc&vote_count.gte=50').then(function(data) {
+  // Japanese animation TV (genre 16 = Animation), newest first
+  tmdbFetch('/discover/tv?with_genres=16&with_original_language=ja&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=50').then(function(data) {
     if (!data || !data.results) { rowFailed('animeRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
     document.getElementById('animeCount').textContent = 'top series';
@@ -5787,8 +5794,8 @@ function fetchAnime() {
 function fetchKDrama() {
   if (!TMDB_KEY) { rowNotice('kdramaRow', 'TMDB key required', 'Add your API key in Settings to load Korean Drama.'); return; }
   skeletonRow('kdramaRow', 10);
-  // Korean-language TV
-  tmdbFetch('/discover/tv?with_original_language=ko&sort_by=popularity.desc&vote_count.gte=40').then(function(data) {
+  // Korean-language TV, newest first
+  tmdbFetch('/discover/tv?with_original_language=ko&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=40').then(function(data) {
     if (!data || !data.results) { rowFailed('kdramaRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
     document.getElementById('kdramaCount').textContent = 'top series';
@@ -5799,8 +5806,8 @@ function fetchKDrama() {
 function fetchPersianTV() {
   if (!TMDB_KEY) { rowNotice('persianTvRow', 'TMDB key required', 'Add your API key in Settings to load Persian series.'); return; }
   skeletonRow('persianTvRow', 10);
-  // Persian / Farsi-language TV series (small catalog, low vote threshold)
-  tmdbFetch('/discover/tv?with_original_language=fa&sort_by=popularity.desc&vote_count.gte=2').then(function(data) {
+  // Persian / Farsi-language TV series, newest first (small catalog, low vote threshold)
+  tmdbFetch('/discover/tv?with_original_language=fa&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=2').then(function(data) {
     if (!data || !data.results) { rowFailed('persianTvRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
     document.getElementById('persianTvCount').textContent = items.length + ' series';
@@ -5811,8 +5818,8 @@ function fetchPersianTV() {
 function fetchTurkish() {
   if (!TMDB_KEY) { rowNotice('turkishRow', 'TMDB key required', 'Add your API key in Settings to load Turkish drama.'); return; }
   skeletonRow('turkishRow', 10);
-  // Turkish-language TV (dizi)
-  tmdbFetch('/discover/tv?with_original_language=tr&sort_by=popularity.desc&vote_count.gte=25').then(function(data) {
+  // Turkish-language TV (dizi), newest first
+  tmdbFetch('/discover/tv?with_original_language=tr&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=25').then(function(data) {
     if (!data || !data.results) { rowFailed('turkishRow'); return; }
     var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
     document.getElementById('turkishCount').textContent = 'top dizi';
