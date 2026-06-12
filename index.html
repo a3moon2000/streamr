@@ -635,6 +635,21 @@
       left: 0; bottom: clamp(72px, 12vh, 120px);
       max-width: min(640px, 52vw); padding: 0 var(--row-pad);
     }
+    /* Wide viewports: the 1366 composition splits into two islands past ~1600px.
+       Bridge the centre with a longer ambient gradient and give the CTA cluster
+       command presence so the text block holds its half of the stage. */
+    @media (min-width: 1600px) {
+      .spotlight-grad {
+        background:
+          linear-gradient(80deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.55) 38%, rgba(0,0,0,0.22) 62%, transparent 86%),
+          linear-gradient(to top, var(--bg) 0%, rgba(20,20,20,0.4) 38%, transparent 68%),
+          linear-gradient(to right, var(--bg) 0%, transparent 18%);
+      }
+      .spotlight-content { max-width: 720px; }
+      .spotlight-overview { max-width: 540px; font-size: 16px; }
+      .sp-btn { font-size: 17px; padding: 12px 30px; }
+      .sp-btn svg { width: 22px; height: 22px; }
+    }
     .spotlight-badges {
       display: flex; align-items: center; gap: 10px;
       margin-bottom: 14px; flex-wrap: wrap;
@@ -645,9 +660,11 @@
       background: transparent; color: var(--text2);
       letter-spacing: 0.08em; text-transform: uppercase;
     }
-    .sp-rating { color: #46d369; font-weight: 700; font-size: 14px; }
-    .sp-match { color: #46d369; font-weight: 700; font-size: 14px; }
-    .sp-meta-txt { color: var(--text2); font-size: 14px; }
+    /* One decision signal in the metadata strip: match score carries the accent alone;
+       rating, year and trending are subordinated to muted small type. */
+    .sp-match { color: #46d369; font-weight: 800; font-size: 15px; }
+    .sp-rating { color: var(--text2); font-weight: 600; font-size: 12px; }
+    .sp-meta-txt { color: var(--text2); font-size: 12px; }
     .spotlight-title {
       font-family: var(--display);
       font-size: clamp(3rem, 6.5vw, 5.5rem);
@@ -657,9 +674,10 @@
       text-shadow: 0 4px 24px rgba(0,0,0,0.65);
     }
     .spotlight-overview {
-      color: var(--text); font-size: clamp(14px, 1.35vw, 18px); line-height: 1.45;
-      margin-bottom: 22px; max-width: 520px;
-      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+      /* 2-line cap: synopsis stays a glance, not a paragraph between title and Play */
+      color: var(--text2); font-size: clamp(13px, 1.15vw, 15px); line-height: 1.45;
+      margin-bottom: 20px; max-width: 460px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
       text-shadow: 0 2px 16px rgba(0,0,0,0.8);
     }
     .spotlight-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -1738,10 +1756,13 @@
       .spotlight-badges { gap: 6px; margin-bottom: 8px; }
       .spotlight-title { font-size: clamp(2.4rem, 11vw, 3.4rem); line-height: 0.95; margin-bottom: 8px; }
       .spotlight-overview { font-size: 12.5px; -webkit-line-clamp: 2; margin-bottom: 12px; }
-      .spotlight-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; width: 100%; }
-      .spotlight-actions .sp-btn { justify-content: center; }
-      /* Play owns the full first row on mobile; Hide leaves the hero entirely (card x covers it) */
+      /* Play = full-width primary; More Info = the one secondary; My List = compact icon.
+         No equal-weight ghost pair competing under the primary action. */
+      .spotlight-actions { display: grid; grid-template-columns: minmax(0, 1fr) 54px; gap: 8px; width: 100%; }
+      .spotlight-actions .sp-btn { justify-content: center; min-height: 48px; }
       .spotlight-actions .sp-btn.play { grid-column: 1 / -1; }
+      .spotlight-actions #spotFavBtn { padding: 10px 0; }
+      .spotlight-actions #spotFavBtn span { display: none; }
       .spotlight-actions .sp-hide { display: none; }
       .spotlight-dots { bottom: 10px; }
       .sp-btn { min-height: 44px; padding: 10px 14px; font-size: 13px; border-radius: 9px; }
