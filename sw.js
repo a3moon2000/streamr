@@ -1,5 +1,5 @@
 /* Streamr service worker - app shell cache for installability + offline shell */
-var CACHE = 'streamr-v56';
+var CACHE = 'streamr-v57';
 var SHELL = ['./', './index.html', './icon.svg', './manifest.json',
              './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
@@ -46,8 +46,18 @@ self.addEventListener('fetch', function(e) {
       return caches.match(e.request).then(function(r) {
         if (r) return r;
         if (e.request.mode === 'navigate') {
-          return caches.match('./index.html') || caches.match('./');
+          // NOTE: the old `caches.match(a) || caches.match(b)` returned the FIRST
+          // promise even when it resolved undefined; chain properly instead.
+          return caches.match('./index.html').then(function(shell) {
+            if (shell) return shell;
+            return caches.match('./').then(function(root) {
+              return root || new Response(
+                '<h1 style="font-family:sans-serif;color:#ccc;background:#141414;padding:40px">Offline - reconnect and reload.</h1>',
+                { status: 503, headers: { 'Content-Type': 'text/html' } });
+            });
+          });
         }
+        return new Response('', { status: 504 });
       });
     })
   );

@@ -72,8 +72,8 @@
       transition: background 0.35s ease, box-shadow 0.35s ease;
     }
     header.hdr-solid {
-      background: rgba(20, 20, 20, 0.96);
-      backdrop-filter: blur(14px) saturate(1.2);
+      /* near-opaque already; blur here repaints on every scroll frame for no visible gain */
+      background: rgba(20, 20, 20, 0.97);
       box-shadow: 0 1px 0 rgba(255,255,255,0.04);
     }
     .logo {
@@ -250,7 +250,6 @@
       height: calc(58px + env(safe-area-inset-bottom, 0px));
       padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px));
       background: rgba(20, 20, 20, 0.98);
-      backdrop-filter: blur(18px) saturate(1.2);
       border-top: 1px solid rgba(255,255,255,0.06);
       justify-content: space-around;
       align-items: flex-start;
@@ -679,17 +678,26 @@
     }
     .sp-btn.info:hover { background: rgba(109, 109, 110, 0.55); }
     .sp-btn svg { width: 20px; height: 20px; fill: currentColor; }
+    /* Hide = dismissal, not an engagement action: small ghost icon, never Play's peer */
+    .sp-hide {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.25);
+      background: rgba(0,0,0,0.35); color: var(--muted); cursor: pointer;
+      margin-left: 6px; transition: color 150ms, border-color 150ms;
+    }
+    .sp-hide:hover { color: var(--text); border-color: rgba(255,255,255,0.55); }
+    .sp-hide svg { width: 16px; height: 16px; }
     .spotlight-skel { padding-top: 60px; }
     .spotlight-dots {
-      position: absolute; z-index: 4; bottom: 24px; right: 56px;
-      display: flex; gap: 8px;
+      position: absolute; z-index: 4; bottom: 20px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 10px;
     }
     .sp-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: oklch(70% 0.01 255 / 0.35); cursor: pointer;
+      width: 9px; height: 9px; border-radius: 50%;
+      background: oklch(70% 0.01 255 / 0.4); cursor: pointer;
       transition: background 200ms, width 200ms;
     }
-    .sp-dot.active { background: var(--accent); width: 22px; border-radius: 4px; }
+    .sp-dot.active { background: var(--accent); width: 24px; border-radius: 5px; }
 
     /* Controls bar */
     .ctrl-bar {
@@ -772,8 +780,14 @@
     }
     .sec-header .sec-seeall { margin-left: auto; }
     .sec-title { font-size: clamp(1.15rem, 1.5vw, 1.4rem); font-weight: 700; color: #e5e5e5; letter-spacing: 0; }
+    /* Row hierarchy: priority rows get an accent bar, genre rows recede */
+    .sec-title.sec-prime { padding-left: 12px; border-left: 3px solid var(--accent); }
+    .sec-title.sec-minor { font-size: clamp(1rem, 1.2vw, 1.15rem); font-weight: 600; color: #b8b8b8; }
     .sec-count { display: none; }
     .sec-line { display: none; }
+    /* Scroll arrows stay hidden until the row actually has content */
+    .scroll-wrap .scroll-arrow { visibility: hidden; }
+    .scroll-wrap.row-ready .scroll-arrow { visibility: visible; }
     .row-notice {
       flex: 1 0 100%;
       min-height: 154px;
@@ -1726,7 +1740,10 @@
       .spotlight-overview { font-size: 12.5px; -webkit-line-clamp: 2; margin-bottom: 12px; }
       .spotlight-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; width: 100%; }
       .spotlight-actions .sp-btn { justify-content: center; }
-      .spotlight-dots { right: 16px; bottom: 12px; }
+      /* Play owns the full first row on mobile; Hide leaves the hero entirely (card x covers it) */
+      .spotlight-actions .sp-btn.play { grid-column: 1 / -1; }
+      .spotlight-actions .sp-hide { display: none; }
+      .spotlight-dots { bottom: 10px; }
       .sp-btn { min-height: 44px; padding: 10px 14px; font-size: 13px; border-radius: 9px; }
       .content { padding: 0 0 24px; }
       .sec-header { margin-top: 28px; margin-bottom: 12px; align-items: center; padding: 0 16px; }
@@ -2168,7 +2185,7 @@
   <!-- Continue Watching -->
   <div id="continueSection">
     <div class="sec-header">
-      <div class="sec-title">Continue Watching</div>
+      <div class="sec-title sec-prime">Continue Watching</div>
       <div class="sec-line"></div>
     </div>
     <div class="cw-row" id="cwGrid"></div>
@@ -2188,16 +2205,18 @@
     </div>
   </div>
 
-  <!-- Featured -->
-  <div class="sec-header">
-    <div class="sec-title">Featured</div>
-    <div class="sec-count" id="featCount"></div>
+  <!-- Trending: highest-signal row gets the first content slot -->
+  <div class="sec-header scroll-anchor" id="navTrending">
+    <span class="top10-label"><span>TOP</span><span class="top10-label-n">10</span></span>
+    <div class="sec-title sec-prime">This Week</div>
+    <div class="sec-count" id="trendCount"></div>
     <div class="sec-line"></div>
+    <div class="sec-seeall" onclick="openBrowse('trending')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
   </div>
   <div class="scroll-wrap">
-    <button class="scroll-arrow left" onclick="scrollRow('featuredRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="featured-row" id="featuredRow"></div>
-    <button class="scroll-arrow right" onclick="scrollRow('featuredRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="scroll-arrow left" onclick="scrollRow('trendingRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="trending-row" id="trendingRow"></div>
+    <button class="scroll-arrow right" onclick="scrollRow('trendingRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
 
   <!-- Mind Bending -->
@@ -2213,18 +2232,16 @@
     <button class="scroll-arrow right" onclick="scrollRow('mindRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
 
-  <!-- Trending -->
-  <div class="sec-header scroll-anchor" id="navTrending">
-    <span class="top10-label"><span>TOP</span><span class="top10-label-n">10</span></span>
-    <div class="sec-title">This Week</div>
-    <div class="sec-count" id="trendCount"></div>
+  <!-- Featured -->
+  <div class="sec-header">
+    <div class="sec-title">Featured</div>
+    <div class="sec-count" id="featCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('trending')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
   </div>
   <div class="scroll-wrap">
-    <button class="scroll-arrow left" onclick="scrollRow('trendingRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="trending-row" id="trendingRow"></div>
-    <button class="scroll-arrow right" onclick="scrollRow('trendingRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="scroll-arrow left" onclick="scrollRow('featuredRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="featured-row" id="featuredRow"></div>
+    <button class="scroll-arrow right" onclick="scrollRow('featuredRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
 
   <!-- Top Rated -->
@@ -2268,7 +2285,7 @@
 
   <!-- Bollywood -->
   <div class="sec-header scroll-anchor" id="navWorld">
-    <div class="sec-title">Bollywood Latest</div>
+    <div class="sec-title sec-minor">Bollywood Latest</div>
     <div class="sec-count" id="bollyCount"></div>
     <div class="sec-line"></div>
     <div class="sec-seeall" onclick="openBrowse('bolly')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -2281,7 +2298,7 @@
 
   <!-- Persian -->
   <div class="sec-header">
-    <div class="sec-title">Persian Cinema</div>
+    <div class="sec-title sec-minor">Persian Cinema</div>
     <div class="sec-count" id="persianCount"></div>
     <div class="sec-line"></div>
     <div class="sec-seeall" onclick="openBrowse('persian')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -2294,7 +2311,7 @@
 
   <!-- Persian TV -->
   <div class="sec-header">
-    <div class="sec-title">Persian Series</div>
+    <div class="sec-title sec-minor">Persian Series</div>
     <div class="sec-count" id="persianTvCount"></div>
     <div class="sec-line"></div>
     <div class="sec-seeall" onclick="openBrowse('persiantv')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -2307,7 +2324,7 @@
 
   <!-- Anime -->
   <div class="sec-header scroll-anchor" id="navAnime">
-    <div class="sec-title">Anime</div>
+    <div class="sec-title sec-minor">Anime</div>
     <div class="sec-count" id="animeCount"></div>
     <div class="sec-line"></div>
     <div class="sec-seeall" onclick="openBrowse('anime')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -2320,7 +2337,7 @@
 
   <!-- K-Drama -->
   <div class="sec-header scroll-anchor" id="navKdrama">
-    <div class="sec-title">Korean Drama</div>
+    <div class="sec-title sec-minor">Korean Drama</div>
     <div class="sec-count" id="kdramaCount"></div>
     <div class="sec-line"></div>
     <div class="sec-seeall" onclick="openBrowse('kdrama')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -2333,7 +2350,7 @@
 
   <!-- Turkish Drama -->
   <div class="sec-header">
-    <div class="sec-title">Turkish Drama</div>
+    <div class="sec-title sec-minor">Turkish Drama</div>
     <div class="sec-count" id="turkishCount"></div>
     <div class="sec-line"></div>
     <div class="sec-seeall" onclick="openBrowse('turkish')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -2346,7 +2363,7 @@
 
   <!-- Movies -->
   <div class="sec-header scroll-anchor" id="navMovies">
-    <div class="sec-title">Popular Movies</div>
+    <div class="sec-title sec-minor">Popular Movies</div>
     <div class="sec-count">12 titles</div>
     <div class="sec-line"></div>
     <div class="sec-seeall" onclick="openBrowse('popmovies')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -2363,7 +2380,7 @@
 
   <!-- TV -->
   <div class="sec-header scroll-anchor" id="navTV">
-    <div class="sec-title">Popular TV Shows</div>
+    <div class="sec-title sec-minor">Popular TV Shows</div>
     <div class="sec-count">12 titles</div>
     <button class="sec-pick-btn" type="button" onclick="openTVHub()">Pick Episodes</button>
     <div class="sec-line"></div>
@@ -2946,6 +2963,24 @@ try { posterCache = JSON.parse(localStorage.getItem('streamr_posters_v2')) || {}
 var metaCache = {};
 try { metaCache = JSON.parse(localStorage.getItem('streamr_meta_v1')) || {}; } catch(e) {}
 
+// metaCache grows forever otherwise; cap it and flush at most every 2s (quota + serialization cost).
+var META_CACHE_MAX = 400;
+var metaFlushTimer = null;
+function persistMetaCaches() {
+  if (metaFlushTimer) return;
+  metaFlushTimer = setTimeout(function() {
+    metaFlushTimer = null;
+    try {
+      var keys = Object.keys(metaCache);
+      if (keys.length > META_CACHE_MAX) {
+        for (var i = 0; i < keys.length - META_CACHE_MAX; i++) delete metaCache[keys[i]];
+      }
+      localStorage.setItem('streamr_meta_v1', JSON.stringify(metaCache));
+      localStorage.setItem('streamr_posters_v2', JSON.stringify(posterCache));
+    } catch(e) {}
+  }, 2000);
+}
+
 function tmdbFetch(path) {
   if (!TMDB_KEY) return Promise.resolve(null);
   return fetch('https://api.themoviedb.org/3' + path + (path.indexOf('?')>-1?'&':'?') + 'api_key=' + TMDB_KEY)
@@ -2966,8 +3001,7 @@ function fetchMeta(type, id, cb) {
     };
     metaCache[ck] = meta;
     posterCache[ck] = d.poster_path;
-    localStorage.setItem('streamr_meta_v1', JSON.stringify(metaCache));
-    localStorage.setItem('streamr_posters_v2', JSON.stringify(posterCache));
+    persistMetaCaches();
     cb(meta);
   });
 }
@@ -5196,7 +5230,7 @@ function showSpot(i) {
     + '<button class="sp-btn play" onclick="quickPlay('+s.id+',\''+type+'\',\''+esc(title)+'\')"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Play</button>'
     + '<button class="sp-btn info" onclick="openDetail('+s.id+',\''+type+'\',\''+esc(title)+'\')"><svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>More Info</button>'
     + '<button class="sp-btn info" id="spotFavBtn" onclick="var b=this;b.classList.toggle(\'faved\',toggleFav('+s.id+',\''+type+'\',\''+esc(title)+'\'));b.querySelector(\'span\').textContent=b.classList.contains(\'faved\')?\'In List\':\'My List\'"><svg viewBox="0 0 24 24" style="fill:'+(spFaved?'currentColor':'none')+';stroke:currentColor;stroke-width:2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>'+(spFaved?'In List':'My List')+'</span></button>'
-    + '<button class="sp-btn info" onclick="hideTitle('+s.id+',\''+type+'\',\''+esc(title)+'\')"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2"><path d="M18 6 6 18M6 6l12 12"/></svg>Hide</button>'
+    + '<button class="sp-hide" title="Hide this title" aria-label="Hide this title" onclick="hideTitle('+s.id+',\''+type+'\',\''+esc(title)+'\')"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>'
     + '</div>';
 
   document.querySelectorAll('.sp-dot').forEach(function(d, di){ d.classList.toggle('active', di === i); });
@@ -5265,7 +5299,7 @@ function prefetchDetail(id, type) {
       overview: d.overview || '',
       genres: (d.genres || []).slice(0, 2).map(function(g){ return g.name; })
     };
-    try { localStorage.setItem('streamr_meta_v1', JSON.stringify(metaCache)); } catch(e) {}
+    persistMetaCaches();
   });
 }
 
@@ -5275,8 +5309,15 @@ function renderPosterRow(items, containerId, opts) {
   var row = document.getElementById(containerId);
   if (!row) return;
   row.classList.toggle('top10-row', !!opts.numbered);
-  if (!items || items.length === 0) { row.classList.remove('row-anim'); rowNotice(containerId, 'Nothing matched', 'Try another sort or loosen hidden genres.'); return; }
+  var wrap = row.parentElement && row.parentElement.classList.contains('scroll-wrap') ? row.parentElement : null;
+  if (!items || items.length === 0) {
+    row.classList.remove('row-anim');
+    if (wrap) wrap.classList.remove('row-ready');
+    rowNotice(containerId, 'Nothing matched', 'Try another sort or loosen hidden genres.');
+    return;
+  }
   row.innerHTML = items.map(function(item, i) { return posterCardHTML(item, i, opts); }).join('');
+  if (wrap) wrap.classList.add('row-ready');
   row.classList.remove('row-anim');
   void row.offsetWidth;
   row.classList.add('row-anim');
@@ -5350,6 +5391,19 @@ function getMindFilteredItems() {
 function hydrateCuratedItems(items) {
   if (!TMDB_KEY) return Promise.resolve(items);
   return Promise.all(items.map(function(item) {
+    var cck = item.type + '_' + item.id;
+    var cached = metaCache[cck];
+    // Cached from a prior session: zero network cost on repeat visits.
+    if (cached && cached.poster) {
+      return Promise.resolve({
+        id: item.id, type: item.type, media_type: item.type,
+        title: item.title, name: item.title,
+        release_date: cached.release_date || '',
+        first_air_date: cached.first_air_date || '',
+        poster_path: cached.poster,
+        vote_average: cached.vote_average || null,
+      });
+    }
     return tmdbFetch('/' + item.type + '/' + item.id).then(function(d) {
       if (!d) return item;
       var ck = item.type + '_' + item.id;
@@ -5359,6 +5413,9 @@ function hydrateCuratedItems(items) {
         rating: d.vote_average ? d.vote_average.toFixed(1) : null,
         overview: d.overview ? d.overview.substring(0, 120) : '',
         genres: (d.genres || []).slice(0,2).map(function(g){ return g.name; }),
+        release_date: d.release_date || '',
+        first_air_date: d.first_air_date || '',
+        vote_average: d.vote_average || null,
       };
       metaCache[ck] = meta;
       posterCache[ck] = d.poster_path;
@@ -5375,10 +5432,7 @@ function hydrateCuratedItems(items) {
       };
     }).catch(function(){ return item; });
   })).then(function(hydrated) {
-    try {
-      localStorage.setItem('streamr_meta_v1', JSON.stringify(metaCache));
-      localStorage.setItem('streamr_posters_v2', JSON.stringify(posterCache));
-    } catch(e) {}
+    persistMetaCaches();
     return hydrated;
   });
 }
@@ -5857,13 +5911,15 @@ function renderMyList() {
   var sec = document.getElementById('myListSection');
   var pill = document.getElementById('qnMyList');
   var row = document.getElementById('myListRow');
-  sec.style.display = 'block';
   if (list.length === 0) {
+    // Empty list never occupies the prime slot under the hero.
+    sec.style.display = 'none';
     if (pill) pill.style.display = 'none';
     document.getElementById('myListCount').textContent = '';
-    if (row) row.innerHTML = '<div class="row-notice"><div><strong>Your list is empty</strong><span>Tap the heart on any title to save it here.</span></div></div>';
+    if (row) row.innerHTML = '';
     return;
   }
+  sec.style.display = 'block';
   if (pill) pill.style.display = '';
   document.getElementById('myListCount').textContent = list.length + ' saved';
   renderPosterRow(list, 'myListRow', {});
@@ -5920,7 +5976,7 @@ function openDetail(id, type, title) {
     // cache meta
     var ck = type+'_'+id;
     metaCache[ck] = { poster:d.poster_path, backdrop:d.backdrop_path, rating:rating, overview:d.overview||'', genres:genres.slice(0,2) };
-    try { localStorage.setItem('streamr_meta_v1', JSON.stringify(metaCache)); } catch(e){}
+    persistMetaCaches();
 
     var html = '<div class="detail-hero">'
       + (backdrop ? '<img src="'+backdrop+'" alt="">' : '')
@@ -6270,11 +6326,13 @@ function initScrollSpy() {
 initScrollSpy();
 
 renderSpotlight();
-renderFeatured();
-renderMindBending();
 renderCW();
 renderMyList();
 fetchTrending();
+/* Featured + Mind Bending hydrate ~30 TMDB items; below the fold, so lazy-load them
+   instead of stampeding the API at first paint (cached sessions cost 0 fetches). */
+lazyLoad('mindRow',       renderMindBending);
+lazyLoad('featuredRow',   renderFeatured);
 lazyLoad('topRatedRow',   fetchTopRated);
 lazyLoad('nowPlayingRow', fetchNowPlaying);
 lazyLoad('uhdRow',        fetch4K);
@@ -6354,6 +6412,8 @@ if ('serviceWorker' in navigator) {
     var refreshed = false;
     navigator.serviceWorker.addEventListener('controllerchange', function() {
       if (refreshed) return;
+      // Never hard-reload mid-stream; pick the update up when the player closes.
+      if (document.body.classList.contains('player-mode')) return;
       refreshed = true;
       location.reload();
     });
