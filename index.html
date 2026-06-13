@@ -6302,15 +6302,9 @@ function lazyLoad(anchorId, fn) {
     });
   }
 
-  document.querySelectorAll('.scroll-wrap').forEach(function(wrap) {
-    wrap.addEventListener('wheel', function(ev) {
-      var row = wrap.querySelector('.trending-row, .featured-row, .cw-row');
-      if (!row || row.scrollWidth <= row.clientWidth) return;
-      if (Math.abs(ev.deltaY) < Math.abs(ev.deltaX)) return;
-      ev.preventDefault();
-      row.scrollBy({ left: ev.deltaY, behavior: 'auto' });
-    }, { passive: false });
-  });
+  // Vertical wheel scroll is left to the page (never hijacked into horizontal row
+  // movement). Rows are moved sideways via the arrow buttons (scrollRow) or native
+  // horizontal trackpad swipe on the overflow-x:auto row.
 })();
 
 var scrollSpyObserver = null;
