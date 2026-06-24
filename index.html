@@ -1207,19 +1207,21 @@
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--rx); padding: 28px;
       width: 400px; max-width: 90vw;
+      max-height: calc(100dvh - 32px); overflow-y: auto;
       box-shadow: 0 24px 80px oklch(0% 0 0 / 0.6);
       animation: fadeUp 300ms ease both;
     }
     .modal h3 { font-family: var(--display); font-size: 22px; font-weight: 400; letter-spacing: 0.04em; margin-bottom: 16px; }
     .modal-field { margin-bottom: 14px; }
     .modal-field label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; }
-    .modal-field input {
+    .modal-field input, .modal-field textarea {
       width: 100%; padding: 10px 12px;
       background: var(--surface2); border: 1px solid var(--border);
       border-radius: var(--r); color: var(--text);
       font-family: var(--mono); font-size: 13px; outline: none;
     }
-    .modal-field input:focus { border-color: var(--accent); }
+    .modal-field textarea { min-height: 86px; resize: vertical; line-height: 1.35; }
+    .modal-field input:focus, .modal-field textarea:focus { border-color: var(--accent); }
     .modal-hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
     .modal-actions { display: flex; gap: 8px; margin-top: 20px; }
     .modal-btn {
@@ -1995,7 +1997,7 @@
         margin: 4px auto 16px;
       }
       .modal h3 { font-size: 18px; margin-bottom: 18px; }
-      .modal-field input { min-height: 44px; font-size: 16px; }
+      .modal-field input, .modal-field textarea { min-height: 44px; font-size: 16px; }
       .modal-btn { min-height: 44px; flex: 1; }
       .modal-actions { flex-wrap: wrap; }
       .modal-actions .modal-btn.secondary:last-child { flex-basis: 100%; margin-left: 0 !important; margin-top: 4px; }
@@ -2583,6 +2585,16 @@
       <div class="hidden-title-list" id="hiddenTitlesList"></div>
       <div class="modal-hint">Tap × on any card to hide it. Restore titles here anytime.</div>
     </div>
+    <div class="modal-field">
+      <label>Private Sync Code</label>
+      <textarea id="syncCodeInput" placeholder="Make one private code, then use the same code on each device"></textarea>
+      <div class="modal-hint">Save the same code once on your phone and PC. Streamr will keep hidden titles, My List, Continue Watching, and episode progress matched automatically.</div>
+      <div class="modal-actions" style="margin-top:8px">
+        <button class="modal-btn secondary" type="button" onclick="saveSyncCode()">Save & Start</button>
+        <button class="modal-btn secondary" type="button" onclick="syncNow()">Sync Now</button>
+        <button class="modal-btn secondary" type="button" onclick="stopSync()">Stop</button>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="modal-btn primary" onclick="saveSettings()">Save</button>
       <button class="modal-btn secondary" onclick="closeSettings()">Cancel</button>
@@ -2908,6 +2920,8 @@ function hideTitle(id, type, title) {
   }
   var histKey = type + '_' + id;
   localStorage.setItem(HK, JSON.stringify(getHistory().filter(function(x){ return x.key !== histKey; })));
+  historyMem = null;
+  scheduleSyncPush();
   if (document.getElementById('detailBackdrop').classList.contains('on')) closeDetail();
   refreshAfterHide();
   showToast('Hidden · ' + (title || 'Title') + " won't show again");
@@ -2918,6 +2932,7 @@ function unhideTitle(id, type) {
   localStorage.setItem(HK_HIDDEN, JSON.stringify(keys));
   delete hiddenTitleMeta[key];
   try { localStorage.setItem('streamr_hidden_meta_v1', JSON.stringify(hiddenTitleMeta)); } catch(e) {}
+  scheduleSyncPush();
 }
 function unhideTitleAndRefresh(id, type) {
   unhideTitle(id, type);
@@ -2928,6 +2943,7 @@ function clearHiddenTitles() {
   localStorage.removeItem(HK_HIDDEN);
   localStorage.removeItem('streamr_hidden_meta_v1');
   hiddenTitleMeta = {};
+  scheduleSyncPush();
   refreshAfterHide();
   showToast('All hidden titles restored');
 }
@@ -4765,11 +4781,13 @@ function saveHistory(id, type, s, e, title, ts, dur, pct, silent) {
   }
   lastHistorySnapshot[key] = { pct: entry.pct || 0, ts: entry.ts || 0 };
   flushHistoryStore(historyMem);
+  scheduleSyncPush();
   renderCW();
 }
 function removeHistory(key) {
   historyMem = getHistory().filter(function(x){ return x.key !== key; });
   flushHistoryStore(historyMem);
+  scheduleSyncPush();
   renderCW();
 }
 
@@ -4879,6 +4897,52 @@ function renderFeatured() {
 }
 
 /* Picks grid */
+function pickTitle(item) {
+  return item.title || item.name || item.original_title || item.original_name || 'Untitled';
+}
+function pickYear(item) {
+  return item.year || (item.release_date || item.first_air_date || '').substring(0, 4) || '';
+}
+function tmdbPick(item, type) {
+  return {
+    id: item.id,
+    title: pickTitle(item),
+    year: pickYear(item),
+    icon: type === 'tv' ? '&#128250;' : '&#127909;',
+    poster_path: item.poster_path,
+    release_date: item.release_date || '',
+    first_air_date: item.first_air_date || '',
+    vote_average: item.vote_average || null,
+    media_type: type
+  };
+}
+function livePicksPath(type, genreId) {
+  var today = new Date().toISOString().slice(0,10);
+  var sort = type === 'tv' ? 'first_air_date.desc' : 'primary_release_date.desc';
+  var dateParam = type === 'tv' ? 'first_air_date.lte=' : 'primary_release_date.lte=';
+  var p = '/discover/' + type + '?sort_by=' + sort + '&' + dateParam + today;
+  p += type === 'tv' ? '&vote_count.gte=35' : '&vote_count.gte=80&without_genres=27';
+  if (genreId) p += '&with_genres=' + genreId;
+  return p;
+}
+function fetchLivePicks(type, containerId, genreId, fallbackItems) {
+  if (!TMDB_KEY) { renderPicks(fallbackItems, type, containerId); return; }
+  var grid = document.getElementById(containerId);
+  grid.innerHTML = '';
+  for (var i = 0; i < 12; i++) grid.insertAdjacentHTML('beforeend', '<div class="skel skel-card"></div>');
+  tmdbFetch(livePicksPath(type, genreId)).then(function(data) {
+    if (!data || !data.results || !data.results.length) {
+      renderPicks(fallbackItems, type, containerId);
+      return;
+    }
+    var items = data.results.filter(function(r){ return r.poster_path; }).slice(0, 12).map(function(r){ return tmdbPick(r, type); });
+    renderPicks(items.length ? items : fallbackItems, type, containerId);
+  });
+}
+function renderHomePicks(type, containerId) {
+  fetchLivePicks(type, containerId, 0, type === 'movie' ? MOVIES : TV);
+}
+
 function renderPicks(items, type, containerId) {
   var grid = document.getElementById(containerId);
   items = items.filter(function(item){ return !isTitleHidden(item.id, type); });
@@ -4889,21 +4953,24 @@ function renderPicks(items, type, containerId) {
     var overview = meta.overview ? esc(meta.overview) : '';
     var rating = meta.rating || '';
     var faved = isFaved(item.id, type);
-    return '<div class="pick" onclick="openDetail('+item.id+',\''+type+'\',\''+esc(item.title)+'\')">'
+    var title = pickTitle(item);
+    var year = pickYear(item);
+    var icon = item.icon || (type === 'tv' ? '&#128250;' : '&#127909;');
+    return '<div class="pick" onclick="openDetail('+item.id+',\''+type+'\',\''+esc(title)+'\')">'
       + '<div class="pick-poster" id="poster_'+ck+'" style="background:linear-gradient(135deg,'+g[0]+','+g[1]+')">'
-      + '<span class="poster-icon">'+item.icon+'</span>'
-      + '<div class="pick-overlay"><div class="pick-play" onclick="event.stopPropagation();quickPlay('+item.id+',\''+type+'\',\''+esc(item.title)+'\')"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>'
-      + '<button class="pick-fav'+(faved?' faved':'')+'" onclick="event.stopPropagation();this.classList.toggle(\'faved\',toggleFav('+item.id+',\''+type+'\',\''+esc(item.title)+'\'))"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>'
-      + hideBtnHTML(item.id, type, item.title)
+      + '<span class="poster-icon">'+icon+'</span>'
+      + '<div class="pick-overlay"><div class="pick-play" onclick="event.stopPropagation();quickPlay('+item.id+',\''+type+'\',\''+esc(title)+'\')"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>'
+      + '<button class="pick-fav'+(faved?' faved':'')+'" onclick="event.stopPropagation();this.classList.toggle(\'faved\',toggleFav('+item.id+',\''+type+'\',\''+esc(title)+'\'))"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>'
+      + hideBtnHTML(item.id, type, title)
       + '<div class="pick-badge">'+type.toUpperCase()+'</div>'
       + '<div class="pick-rating" id="rating_'+ck+'">'+(rating?'★ '+rating:'')+'</div>'
       + '</div>'
       + '<div class="pick-overview" id="ov_'+ck+'">'
-      + '<div class="pick-ov-title">'+htmlEsc(item.title)+'</div>'
+      + '<div class="pick-ov-title">'+htmlEsc(title)+'</div>'
       + '<div class="pick-ov-text" id="ovtext_'+ck+'">'+(overview||'')+'</div>'
-      + '<div class="pick-ov-btn" onclick="event.stopPropagation();quickPlay('+item.id+',\''+type+'\',\''+esc(item.title)+'\')"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Watch</div>'
+      + '<div class="pick-ov-btn" onclick="event.stopPropagation();quickPlay('+item.id+',\''+type+'\',\''+esc(title)+'\')"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Watch</div>'
       + '</div>'
-      + '<div class="pick-info"><div class="pick-title">'+htmlEsc(item.title)+'</div><div class="pick-sub">'+item.year+(rating?' · ★ '+rating:'')+'</div></div>'
+      + '<div class="pick-info"><div class="pick-title">'+htmlEsc(title)+'</div><div class="pick-sub">'+year+(rating?' · ★ '+rating:'')+'</div></div>'
       + '</div>';
   }).join('');
   grid.classList.remove('grid-anim');
@@ -4950,19 +5017,10 @@ function filterGenre(type, genreId, btn) {
   document.querySelectorAll('#'+tabsId+' .genre-tab').forEach(function(t){ t.classList.remove('active'); });
   btn.classList.add('active');
   if (genreId === 0) {
-    renderPicks(type === 'movie' ? MOVIES : TV, type, gridId);
+    renderHomePicks(type, gridId);
     return;
   }
-  var grid = document.getElementById(gridId);
-  grid.innerHTML = '';
-  for (var i = 0; i < 8; i++) grid.insertAdjacentHTML('beforeend', '<div class="skel skel-card"></div>');
-  tmdbFetch('/discover/'+type+'?with_genres='+genreId+'&without_genres=27&sort_by=popularity.desc&vote_count.gte=100').then(function(data) {
-    if (!data || !data.results) return;
-    var items = data.results.slice(0, 12).map(function(r) {
-      return { id: r.id, title: r.title || r.name, year: (r.release_date || r.first_air_date || '').substring(0,4), icon: '&#127909;' };
-    });
-    renderPicks(items, type, gridId);
-  });
+  fetchLivePicks(type, gridId, genreId, type === 'movie' ? MOVIES : TV);
 }
 
 function quickPlay(id, type, title) {
@@ -4999,6 +5057,8 @@ function openSettings() {
   var settingsEp = document.getElementById('settingsEpSel');
   var epSel = document.getElementById('epSel');
   if (settingsEp && epSel) settingsEp.checked = epSel.checked;
+  var syncBox = document.getElementById('syncCodeInput');
+  if (syncBox) syncBox.value = getSyncCode();
   renderGenreHideChips();
   renderHiddenTitlesList();
   document.getElementById('settingsModal').classList.add('on');
@@ -5006,9 +5066,10 @@ function openSettings() {
 function closeSettings() { document.getElementById('settingsModal').classList.remove('on'); }
 function refreshAllRows() {
   if (!TMDB_KEY) return;
+  trendingWeekCache = null;
   renderSpotlight(); renderFeatured();
   renderMindBending();
-  renderPicks(MOVIES, 'movie', 'movieGrid'); renderPicks(TV, 'tv', 'tvGrid');
+  renderHomePicks('movie', 'movieGrid'); renderHomePicks('tv', 'tvGrid');
   renderMyList();
   fetchTrending(); fetchTopRated(); fetchNowPlaying();
   fetch4K(); fetchBollywood(); fetchPersian(); fetchPersianTV(); fetchAnime(); fetchKDrama(); fetchTurkish();
@@ -5034,10 +5095,204 @@ function saveSettings() {
     epSel.checked = settingsEp.checked;
     localStorage.setItem('streamr_epsel', settingsEp.checked ? '1' : '0');
   }
+  var syncBox = document.getElementById('syncCodeInput');
+  if (syncBox && syncBox.value.trim()) localStorage.setItem(SYNC_CODE_KEY, syncBox.value.trim());
   localStorage.setItem('streamr_hidden_genres', JSON.stringify(HIDDEN_GENRES));
+  scheduleSyncPush();
   closeSettings();
+  startStreamrSync();
   refreshAllRows();
   showToast('Settings saved');
+}
+
+function readSyncJson(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch(e) { return fallback; }
+}
+var SYNC_CODE_KEY = 'streamr_sync_code_v1';
+var syncTimer = null, syncSaveTimer = null, syncBusy = false, syncLastPull = 0;
+var SYNC_PULL_MS = 60000;
+var SYNC_SAVE_DELAY = 1800;
+function getSyncCode() {
+  try { return (localStorage.getItem(SYNC_CODE_KEY) || '').trim(); } catch(e) { return ''; }
+}
+function syncEndpoint() {
+  var code = getSyncCode();
+  if (!SUB_WORKER || !code) return '';
+  return SUB_WORKER.replace(/\/+$/, '') + '/sync/' + encodeURIComponent(code);
+}
+function syncEncode(payload) {
+  var json = JSON.stringify(payload);
+  return btoa(unescape(encodeURIComponent(json)));
+}
+function syncDecode(code) {
+  var text = (code || '').trim();
+  if (!text) throw new Error('empty');
+  if (text.charAt(0) === '{') return JSON.parse(text);
+  return JSON.parse(decodeURIComponent(escape(atob(text))));
+}
+function mergeByKey(current, incoming, getKey, preferNewer) {
+  var map = {};
+  (current || []).concat(incoming || []).forEach(function(item) {
+    if (!item) return;
+    var key = getKey(item);
+    if (!key) return;
+    if (!map[key] || !preferNewer || ((item.at || item.ts || 0) >= (map[key].at || map[key].ts || 0))) map[key] = item;
+  });
+  return Object.keys(map).map(function(k){ return map[k]; });
+}
+function mergeHiddenMeta(current, incoming) {
+  var out = Object.assign({}, current || {});
+  Object.keys(incoming || {}).forEach(function(key) {
+    if (!out[key] || ((incoming[key].ts || 0) >= (out[key].ts || 0))) out[key] = incoming[key];
+  });
+  return out;
+}
+function mergeEpisodeStore(current, incoming) {
+  var out = Object.assign({}, current || {});
+  Object.keys(incoming || {}).forEach(function(showKey) {
+    var curShow = Object.assign({}, out[showKey] || {});
+    Object.keys(incoming[showKey] || {}).forEach(function(epKey) {
+      var next = incoming[showKey][epKey];
+      if (!curShow[epKey] || ((next.at || 0) >= (curShow[epKey].at || 0))) curShow[epKey] = next;
+    });
+    out[showKey] = curShow;
+  });
+  return out;
+}
+function buildSyncSettings() {
+  return {
+    hiddenGenres: HIDDEN_GENRES || [],
+    autoplay: localStorage.getItem('streamr_autoplay'),
+    episodeAutoplay: localStorage.getItem('streamr_epsel'),
+    subtitlesOn: localStorage.getItem('streamr_subs_on'),
+    subtitleSize: localStorage.getItem('streamr_sub_size'),
+    playerSource: localStorage.getItem('streamr_player_source')
+  };
+}
+function applySyncSettings(settings) {
+  if (!settings) return;
+  if (Array.isArray(settings.hiddenGenres)) {
+    HIDDEN_GENRES = settings.hiddenGenres.slice();
+    localStorage.setItem('streamr_hidden_genres', JSON.stringify(HIDDEN_GENRES));
+    renderGenreHideChips();
+  }
+  if (settings.autoplay !== null && settings.autoplay !== undefined) {
+    localStorage.setItem('streamr_autoplay', settings.autoplay === '1' || settings.autoplay === true ? '1' : '0');
+    var ap = document.getElementById('autoPlay');
+    if (ap) ap.checked = localStorage.getItem('streamr_autoplay') === '1';
+  }
+  if (settings.episodeAutoplay !== null && settings.episodeAutoplay !== undefined) {
+    localStorage.setItem('streamr_epsel', settings.episodeAutoplay === '1' || settings.episodeAutoplay === true ? '1' : '0');
+    var ep = document.getElementById('epSel');
+    var settingsEp = document.getElementById('settingsEpSel');
+    if (ep) ep.checked = localStorage.getItem('streamr_epsel') === '1';
+    if (settingsEp) settingsEp.checked = localStorage.getItem('streamr_epsel') === '1';
+  }
+  if (settings.subtitlesOn !== null && settings.subtitlesOn !== undefined) {
+    localStorage.setItem('streamr_subs_on', settings.subtitlesOn === '1' || settings.subtitlesOn === true ? '1' : '0');
+    subtitlesVisible = localStorage.getItem('streamr_subs_on') === '1';
+    applySubtitleVisibility();
+  }
+  if (settings.subtitleSize !== null && settings.subtitleSize !== undefined) {
+    subtitleSizeIdx = Math.min(2, Math.max(0, parseInt(settings.subtitleSize, 10) || 1));
+    localStorage.setItem('streamr_sub_size', String(subtitleSizeIdx));
+    applySubtitleSize();
+  }
+  if (settings.playerSource) setPlayerSource(settings.playerSource, false);
+}
+function buildSyncPayload() {
+  flushHistoryStore();
+  return {
+    app: 'streamr',
+    v: 1,
+    exportedAt: Date.now(),
+    data: {
+      hidden: getHiddenKeys(),
+      hiddenMeta: hiddenTitleMeta || readSyncJson('streamr_hidden_meta_v1', {}),
+      list: getList(),
+      history: getHistory(),
+      episodes: getEpStore(),
+      settings: buildSyncSettings()
+    }
+  };
+}
+function syncFingerprint() {
+  return JSON.stringify(buildSyncPayload().data);
+}
+function applySyncPayload(payload, silent) {
+  var before = syncFingerprint();
+  if (!payload || payload.app !== 'streamr' || !payload.data) throw new Error('bad');
+  var d = payload.data;
+  var hidden = Array.from(new Set(getHiddenKeys().concat(d.hidden || [])));
+  hiddenTitleMeta = mergeHiddenMeta(hiddenTitleMeta, d.hiddenMeta || {});
+  var list = mergeByKey(getList(), d.list || [], function(x){ return x.type + '_' + x.id; }, false);
+  historyMem = mergeByKey(getHistory(), d.history || [], function(x){ return x.key; }, true).sort(function(a,b){ return (b.at || 0) - (a.at || 0); }).slice(0, 30);
+  epMem = mergeEpisodeStore(getEpStore(), d.episodes || {});
+  applySyncSettings(d.settings);
+  localStorage.setItem(HK_HIDDEN, JSON.stringify(hidden));
+  localStorage.setItem('streamr_hidden_meta_v1', JSON.stringify(hiddenTitleMeta));
+  localStorage.setItem(LK, JSON.stringify(list));
+  flushHistoryStore(historyMem);
+  var changed = before !== syncFingerprint();
+  if (changed) { renderHiddenTitlesList(); renderMyList(); renderCW(); refreshAllRows(); }
+  if (!silent) showToast('Devices matched');
+  return changed;
+}
+function saveSyncCode() {
+  var box = document.getElementById('syncCodeInput');
+  var code = box ? box.value.trim() : '';
+  if (!code) { showToast('Enter a private sync code first'); return; }
+  try {
+    localStorage.setItem(SYNC_CODE_KEY, code);
+    startStreamrSync();
+    showToast('Auto sync is on');
+  } catch(e) {
+    showToast('Could not save sync code');
+  }
+}
+function stopSync() {
+  try { localStorage.removeItem(SYNC_CODE_KEY); } catch(e) {}
+  if (syncTimer) clearInterval(syncTimer);
+  syncTimer = null;
+  showToast('Auto sync stopped');
+}
+function pushSyncNow() {
+  var url = syncEndpoint();
+  if (!url) return Promise.resolve(false);
+  return fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildSyncPayload())
+  }).then(function(r){ return r.ok; }).catch(function(){ return false; });
+}
+function pullSyncNow(silent) {
+  var url = syncEndpoint();
+  if (!url || syncBusy) return Promise.resolve(false);
+  syncBusy = true;
+  return fetch(url, { method: 'GET', cache: 'no-store' })
+    .then(function(r){ if (r.status === 404) return null; if (!r.ok) throw new Error('sync'); return r.json(); })
+    .then(function(payload){
+      syncLastPull = Date.now();
+      if (!payload) return pushSyncNow();
+      var changed = applySyncPayload(payload, true);
+      return pushSyncNow().then(function(){ if (changed && !silent) showToast('Synced'); return changed; });
+    })
+    .catch(function(){ if (!silent) showToast('Sync could not connect'); return false; })
+    .finally(function(){ syncBusy = false; });
+}
+function scheduleSyncPush() {
+  if (!getSyncCode()) return;
+  clearTimeout(syncSaveTimer);
+  syncSaveTimer = setTimeout(function(){ pushSyncNow(); }, SYNC_SAVE_DELAY);
+}
+function syncNow() {
+  pullSyncNow(false);
+}
+function startStreamrSync() {
+  if (!getSyncCode()) return;
+  if (syncTimer) clearInterval(syncTimer);
+  pullSyncNow(true);
+  syncTimer = setInterval(function(){ pullSyncNow(true); }, SYNC_PULL_MS);
 }
 
 function savePlayerPrefs() {
@@ -5916,6 +6171,7 @@ function toggleFav(id, type, title) {
     list.unshift({ id:id, type:type, title:title, poster_path:m.poster, vote_average:m.rating });
   }
   localStorage.setItem(LK, JSON.stringify(list));
+  scheduleSyncPush();
   renderMyList();
   // refresh detail heart if open
   var heart = document.getElementById('detailFav');
@@ -6357,8 +6613,24 @@ lazyLoad('persianTvRow',  fetchPersianTV);
 lazyLoad('animeRow',      fetchAnime);
 lazyLoad('kdramaRow',     fetchKDrama);
 lazyLoad('turkishRow',    fetchTurkish);
-lazyLoad('movieGrid',     function(){ renderPicks(MOVIES, 'movie', 'movieGrid'); });
-lazyLoad('tvGrid',        function(){ renderPicks(TV, 'tv', 'tvGrid'); });
+lazyLoad('movieGrid',     function(){ renderHomePicks('movie', 'movieGrid'); });
+lazyLoad('tvGrid',        function(){ renderHomePicks('tv', 'tvGrid'); });
+
+var liveRowsLastRefresh = Date.now();
+var LIVE_ROWS_REFRESH_MS = 6 * 60 * 60 * 1000;
+function refreshLiveRowsIfStale(force) {
+  if (!TMDB_KEY || document.body.classList.contains('player-mode')) return;
+  if (!force && Date.now() - liveRowsLastRefresh < LIVE_ROWS_REFRESH_MS) return;
+  liveRowsLastRefresh = Date.now();
+  refreshAllRows();
+}
+window.addEventListener('focus', function(){ refreshLiveRowsIfStale(false); });
+window.addEventListener('pageshow', function(e){ refreshLiveRowsIfStale(e.persisted); });
+document.addEventListener('visibilitychange', function(){ if (!document.hidden) refreshLiveRowsIfStale(false); });
+window.addEventListener('focus', function(){ if (Date.now() - syncLastPull > 15000) pullSyncNow(true); });
+window.addEventListener('pageshow', function(){ if (Date.now() - syncLastPull > 15000) pullSyncNow(true); });
+document.addEventListener('visibilitychange', function(){ if (!document.hidden && Date.now() - syncLastPull > 15000) pullSyncNow(true); });
+startStreamrSync();
 
 (function handleDeepLink() {
   var m = location.hash.match(/^#(movie|tv)\/(\d+)/);
