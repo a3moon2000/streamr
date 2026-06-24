@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Refresh Streamr</title>
+  <style>
+    html, body {
+      margin: 0; min-height: 100%; background: #141414; color: #f5f5f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body { display: grid; place-items: center; padding: 24px; }
+    main { width: min(420px, 100%); }
+    h1 { font-size: 24px; margin: 0 0 10px; }
+    p { color: #b5b5b5; line-height: 1.45; margin: 0 0 18px; }
+    button {
+      width: 100%; min-height: 48px; border: 0; border-radius: 8px;
+      background: #e50914; color: #fff; font-size: 15px; font-weight: 700;
+    }
+    .status { font-size: 13px; color: #b5b5b5; margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Refresh Streamr</h1>
+    <p>This clears the old saved app shell on this device and opens the newest Streamr build.</p>
+    <button type="button" onclick="refreshStreamr()">Refresh Now</button>
+    <div class="status" id="status">Ready.</div>
+  </main>
+  <script>
+    async function refreshStreamr() {
+      var status = document.getElementById('status');
+      status.textContent = 'Clearing old app cache...';
+      try {
+        if ('serviceWorker' in navigator) {
+          var regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(function(reg) { return reg.unregister(); }));
+        }
+        if (window.caches && caches.keys) {
+          var keys = await caches.keys();
+          await Promise.all(keys.map(function(key) { return caches.delete(key); }));
+        }
+      } catch (e) {}
+      status.textContent = 'Opening latest Streamr...';
+      location.replace('./?fresh=' + Date.now());
+    }
+  </script>
+</body>
+</html>
