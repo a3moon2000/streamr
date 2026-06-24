@@ -2591,6 +2591,7 @@
       <label>Private Sync Code</label>
       <textarea id="syncCodeInput" placeholder="Make one private code, then use the same code on each device"></textarea>
       <div class="modal-hint">Save the same code once on your phone and PC. Streamr will keep hidden titles, My List, Continue Watching, and episode progress matched automatically.</div>
+      <div class="modal-hint" id="syncStatusHint">Auto sync is off on this device.</div>
       <div class="modal-actions" style="margin-top:8px">
         <button class="modal-btn secondary" type="button" onclick="saveSyncCode()">Save & Start</button>
         <button class="modal-btn secondary" type="button" onclick="syncNow()">Sync Now</button>
@@ -2923,7 +2924,7 @@ function hideTitle(id, type, title) {
   var histKey = type + '_' + id;
   localStorage.setItem(HK, JSON.stringify(getHistory().filter(function(x){ return x.key !== histKey; })));
   historyMem = null;
-  scheduleSyncPush();
+  scheduleSyncPush(true, 'Hidden');
   if (document.getElementById('detailBackdrop').classList.contains('on')) closeDetail();
   refreshAfterHide();
   showToast('Hidden · ' + (title || 'Title') + " won't show again");
@@ -5061,6 +5062,7 @@ function openSettings() {
   if (settingsEp && epSel) settingsEp.checked = epSel.checked;
   var syncBox = document.getElementById('syncCodeInput');
   if (syncBox) syncBox.value = getSyncCode();
+  updateSyncStatusHint();
   renderGenreHideChips();
   renderHiddenTitlesList();
   document.getElementById('settingsModal').classList.add('on');
@@ -5116,6 +5118,10 @@ var SYNC_PULL_MS = 60000;
 var SYNC_SAVE_DELAY = 1800;
 function getSyncCode() {
   try { return (localStorage.getItem(SYNC_CODE_KEY) || '').trim(); } catch(e) { return ''; }
+}
+function updateSyncStatusHint(text) {
+  var el = document.getElementById('syncStatusHint');
+  if (el) el.textContent = text || (getSyncCode() ? 'Auto sync is on for this device.' : 'Auto sync is off on this device.');
 }
 function syncEndpoint() {
   var code = getSyncCode();
@@ -5247,6 +5253,7 @@ function saveSyncCode() {
   try {
     localStorage.setItem(SYNC_CODE_KEY, code);
     startStreamrSync();
+    updateSyncStatusHint('Auto sync is on for this device.');
     showToast('Auto sync is on');
   } catch(e) {
     showToast('Could not save sync code');
@@ -5256,6 +5263,7 @@ function stopSync() {
   try { localStorage.removeItem(SYNC_CODE_KEY); } catch(e) {}
   if (syncTimer) clearInterval(syncTimer);
   syncTimer = null;
+  updateSyncStatusHint('Auto sync is off on this device.');
   showToast('Auto sync stopped');
 }
 function pushSyncNow() {
@@ -5263,6 +5271,7 @@ function pushSyncNow() {
   if (!url) return Promise.resolve(false);
   return fetch(url, {
     method: 'PUT',
+    keepalive: true,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(buildSyncPayload())
   }).then(function(r){ return r.ok; }).catch(function(){ return false; });
@@ -5282,13 +5291,21 @@ function pullSyncNow(silent) {
     .catch(function(){ if (!silent) showToast('Sync could not connect'); return false; })
     .finally(function(){ syncBusy = false; });
 }
-function scheduleSyncPush() {
+function scheduleSyncPush(immediate, label) {
   if (!getSyncCode()) return;
   clearTimeout(syncSaveTimer);
+  if (immediate) {
+    return pushSyncNow().then(function(ok) {
+      if (!ok && label) showToast(label + ' locally · sync will retry');
+      if (!ok) syncSaveTimer = setTimeout(function(){ pushSyncNow(); }, SYNC_SAVE_DELAY);
+      return ok;
+    });
+  }
   syncSaveTimer = setTimeout(function(){ pushSyncNow(); }, SYNC_SAVE_DELAY);
 }
 function syncNow() {
-  pullSyncNow(false);
+  updateSyncStatusHint('Syncing now...');
+  pullSyncNow(false).then(function(ok){ updateSyncStatusHint(ok ? 'Synced just now.' : undefined); });
 }
 function startStreamrSync() {
   if (!getSyncCode()) return;
