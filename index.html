@@ -2592,6 +2592,7 @@
       <textarea id="syncCodeInput" placeholder="Make one private code, then use the same code on each device"></textarea>
       <div class="modal-hint">Save the same code once on your phone and PC. Streamr will keep hidden titles, My List, Continue Watching, and episode progress matched automatically.</div>
       <div class="modal-hint" id="syncStatusHint">Auto sync is off on this device.</div>
+      <div class="modal-hint" id="appVersionHint">App version: v67</div>
       <div class="modal-actions" style="margin-top:8px">
         <button class="modal-btn secondary" type="button" onclick="saveSyncCode()">Save & Start</button>
         <button class="modal-btn secondary" type="button" onclick="syncNow()">Sync Now</button>
@@ -5121,7 +5122,15 @@ function getSyncCode() {
 }
 function updateSyncStatusHint(text) {
   var el = document.getElementById('syncStatusHint');
-  if (el) el.textContent = text || (getSyncCode() ? 'Auto sync is on for this device.' : 'Auto sync is off on this device.');
+  if (el) {
+    if (text) { el.textContent = text; return; }
+    var lastPush = localStorage.getItem('streamr_sync_last_push') || '';
+    var lastPull = localStorage.getItem('streamr_sync_last_pull') || '';
+    var detail = lastPush || lastPull ? ' Last ' + (lastPush ? 'push ' + lastPush : 'pull ' + lastPull) + '.' : '';
+    el.textContent = getSyncCode() ? 'Auto sync is on for this device.' + detail : 'Auto sync is off on this device.';
+  }
+  var app = document.getElementById('appVersionHint');
+  if (app) app.textContent = 'App version: v67';
 }
 function syncEndpoint() {
   var code = getSyncCode();
@@ -5242,7 +5251,7 @@ function applySyncPayload(payload, silent) {
   localStorage.setItem(LK, JSON.stringify(list));
   flushHistoryStore(historyMem);
   var changed = before !== syncFingerprint();
-  if (changed) { renderHiddenTitlesList(); renderMyList(); renderCW(); refreshAllRows(); }
+  if (changed) { refreshAfterHide(); }
   if (!silent) showToast('Devices matched');
   return changed;
 }
@@ -5274,7 +5283,13 @@ function pushSyncNow() {
     keepalive: true,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(buildSyncPayload())
-  }).then(function(r){ return r.ok; }).catch(function(){ return false; });
+  }).then(function(r){
+    if (r.ok) {
+      try { localStorage.setItem('streamr_sync_last_push', new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })); } catch(e) {}
+      updateSyncStatusHint();
+    }
+    return r.ok;
+  }).catch(function(){ return false; });
 }
 function pullSyncNow(silent) {
   var url = syncEndpoint();
@@ -5285,6 +5300,8 @@ function pullSyncNow(silent) {
     .then(function(payload){
       syncLastPull = Date.now();
       if (!payload) return pushSyncNow();
+      try { localStorage.setItem('streamr_sync_last_pull', new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })); } catch(e) {}
+      updateSyncStatusHint();
       var changed = applySyncPayload(payload, true);
       return pushSyncNow().then(function(){ if (changed && !silent) showToast('Synced'); return changed; });
     })
