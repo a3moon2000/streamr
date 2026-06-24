@@ -2592,7 +2592,7 @@
       <textarea id="syncCodeInput" placeholder="Make one private code, then use the same code on each device"></textarea>
       <div class="modal-hint">Save the same code once on your phone and PC. Streamr will keep hidden titles, My List, Continue Watching, and episode progress matched automatically.</div>
       <div class="modal-hint" id="syncStatusHint">Auto sync is off on this device.</div>
-      <div class="modal-hint" id="appVersionHint">App version: v67</div>
+      <div class="modal-hint" id="appVersionHint">App version: v69</div>
       <div class="modal-actions" style="margin-top:8px">
         <button class="modal-btn secondary" type="button" onclick="saveSyncCode()">Save & Start</button>
         <button class="modal-btn secondary" type="button" onclick="syncNow()">Sync Now</button>
@@ -5131,7 +5131,7 @@ function updateSyncStatusHint(text) {
     el.textContent = getSyncCode() ? 'Auto sync is on for this device.' + detail : 'Auto sync is off on this device.';
   }
   var app = document.getElementById('appVersionHint');
-  if (app) app.textContent = 'App version: v67';
+  if (app) app.textContent = 'App version: v69';
 }
 function syncEndpoint() {
   var code = getSyncCode();
