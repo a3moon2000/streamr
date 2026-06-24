@@ -861,18 +861,20 @@
     }
     .scroll-arrow {
       position: absolute; top: 0; transform: none;
-      z-index: 10; width: 48px; height: 100%; border-radius: 0;
-      background: rgba(20,20,20,0.75); border: none;
+      z-index: 80; width: 72px; height: 100%; border-radius: 0;
+      background: rgba(20,20,20,0.78); border: none;
       color: var(--text); cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background 150ms, opacity 150ms;
-      opacity: 0;
+      transition: background 150ms, opacity 150ms, color 150ms;
+      opacity: 0; pointer-events: auto;
     }
-    .scroll-wrap:hover .scroll-arrow { opacity: 1; }
-    .scroll-arrow:hover { background: rgba(20,20,20,0.92); color: #fff; }
-    .scroll-arrow.left { left: 0; }
-    .scroll-arrow.right { right: 0; }
-    .scroll-arrow svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.5; }
+    .scroll-wrap:hover .scroll-arrow,
+    .scroll-arrow:focus-visible { opacity: 1; }
+    .scroll-arrow:hover,
+    .scroll-arrow:focus-visible { background: rgba(20,20,20,0.96); color: #fff; outline: none; }
+    .scroll-arrow.left { left: -2px; }
+    .scroll-arrow.right { right: -2px; }
+    .scroll-arrow svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.8; pointer-events: none; }
     .featured-row {
       display: flex; gap: 10px; overflow-x: auto;
       padding: 4px var(--row-pad) 16px; margin-bottom: 0; scroll-snap-type: x proximity;
