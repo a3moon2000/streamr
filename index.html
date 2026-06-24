@@ -2592,7 +2592,7 @@
       <textarea id="syncCodeInput" placeholder="Make one private code, then use the same code on each device"></textarea>
       <div class="modal-hint">Save the same code once on your phone and PC. Streamr will keep hidden titles, My List, Continue Watching, and episode progress matched automatically.</div>
       <div class="modal-hint" id="syncStatusHint">Auto sync is off on this device.</div>
-      <div class="modal-hint" id="appVersionHint">App version: v69</div>
+      <div class="modal-hint" id="appVersionHint">App version: v70</div>
       <div class="modal-actions" style="margin-top:8px">
         <button class="modal-btn secondary" type="button" onclick="saveSyncCode()">Save & Start</button>
         <button class="modal-btn secondary" type="button" onclick="syncNow()">Sync Now</button>
@@ -5121,6 +5121,15 @@ var SYNC_SAVE_DELAY = 1800;
 function getSyncCode() {
   try { return (localStorage.getItem(SYNC_CODE_KEY) || '').trim(); } catch(e) { return ''; }
 }
+function cleanSyncCode(code) {
+  return (code || '').trim().replace(/[^A-Za-z0-9_.~-]/g, '').slice(0, 128);
+}
+function syncCodeError(code) {
+  var clean = cleanSyncCode(code);
+  if (clean.length < 6) return 'Use at least 6 letters or numbers for the sync code.';
+  if (clean !== (code || '').trim()) return 'Use only letters, numbers, dash, underscore, dot, or tilde.';
+  return '';
+}
 function updateSyncStatusHint(text) {
   var el = document.getElementById('syncStatusHint');
   if (el) {
@@ -5131,7 +5140,7 @@ function updateSyncStatusHint(text) {
     el.textContent = getSyncCode() ? 'Auto sync is on for this device.' + detail : 'Auto sync is off on this device.';
   }
   var app = document.getElementById('appVersionHint');
-  if (app) app.textContent = 'App version: v69';
+  if (app) app.textContent = 'App version: v70';
 }
 function syncEndpoint() {
   var code = getSyncCode();
@@ -5259,7 +5268,10 @@ function applySyncPayload(payload, silent) {
 function saveSyncCode() {
   var box = document.getElementById('syncCodeInput');
   var code = box ? box.value.trim() : '';
-  if (!code) { showToast('Enter a private sync code first'); return; }
+  var err = syncCodeError(code);
+  if (err) { updateSyncStatusHint(err); showToast(err); return; }
+  code = cleanSyncCode(code);
+  if (box) box.value = code;
   try {
     localStorage.setItem(SYNC_CODE_KEY, code);
     startStreamrSync();
@@ -5322,6 +5334,8 @@ function scheduleSyncPush(immediate, label) {
   syncSaveTimer = setTimeout(function(){ pushSyncNow(); }, SYNC_SAVE_DELAY);
 }
 function syncNow() {
+  var err = syncCodeError(getSyncCode());
+  if (err) { updateSyncStatusHint(err); showToast(err); return; }
   updateSyncStatusHint('Syncing now...');
   pullSyncNow(false).then(function(ok){ updateSyncStatusHint(ok ? 'Synced just now.' : 'Could not connect. Check internet, then tap Sync Now.'); });
 }
