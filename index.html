@@ -2612,6 +2612,7 @@ var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'cinez
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var SUB_WORKER_DEFAULT = 'https://streamr-subs.akila-attribution.workers.dev';
 var SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
+var SYNC_WORKER = SUB_WORKER_DEFAULT;
 var externalSubtitles = [], externalSubtitleLast = '', externalSubtitleTimer = null;
 var PLAYER_SOURCES = ['vidlux'];
 var CINEZO_SERVER_CYCLE = [''];
@@ -5134,8 +5135,8 @@ function updateSyncStatusHint(text) {
 }
 function syncEndpoint() {
   var code = getSyncCode();
-  if (!SUB_WORKER || !code) return '';
-  return SUB_WORKER.replace(/\/+$/, '') + '/sync/' + encodeURIComponent(code);
+  if (!code) return '';
+  return SYNC_WORKER.replace(/\/+$/, '') + '/sync/' + encodeURIComponent(code);
 }
 function syncEncode(payload) {
   var json = JSON.stringify(payload);
@@ -5322,7 +5323,7 @@ function scheduleSyncPush(immediate, label) {
 }
 function syncNow() {
   updateSyncStatusHint('Syncing now...');
-  pullSyncNow(false).then(function(ok){ updateSyncStatusHint(ok ? 'Synced just now.' : undefined); });
+  pullSyncNow(false).then(function(ok){ updateSyncStatusHint(ok ? 'Synced just now.' : 'Could not connect. Check internet, then tap Sync Now.'); });
 }
 function startStreamrSync() {
   if (!getSyncCode()) return;
