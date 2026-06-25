@@ -2257,6 +2257,18 @@
     <button class="scroll-arrow right" onclick="scrollRow('mindRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
 
+  <div class="sec-header">
+    <div class="sec-title">Truth-Seeker Docs</div>
+    <div class="sec-count" id="truthDocCount"></div>
+    <div class="sec-line"></div>
+    <div class="sec-seeall" onclick="openBrowse('truthdocs')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+  </div>
+  <div class="scroll-wrap">
+    <button class="scroll-arrow left" onclick="scrollRow('truthDocRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="trending-row" id="truthDocRow"></div>
+    <button class="scroll-arrow right" onclick="scrollRow('truthDocRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </div>
+
   <!-- Featured -->
   <div class="sec-header">
     <div class="sec-title">Featured</div>
@@ -2781,6 +2793,36 @@ var MIND_FILTERS = [
   { key:'dark', label:'Dark' },
   { key:'animation', label:'Animation' },
 ];
+
+var TRUTH_DOC_TITLES = [
+  'Root Cause',
+  'The Social Dilemma',
+  'The Great Hack',
+  'Citizenfour',
+  'Icarus',
+  'The Bleeding Edge',
+  'Food, Inc.',
+  'Fed Up',
+  'Forks Over Knives',
+  'What the Health',
+  'Cowspiracy',
+  'Seaspiracy',
+  'The Game Changers',
+  'The True Cost',
+  'HyperNormalisation',
+  'Manufacturing Consent',
+  'The Corporation',
+  'Zeitgeist',
+  'Behind the Curve',
+  'The Act of Killing',
+  'The Dissident',
+  'The Inventor: Out for Blood in Silicon Valley',
+  'Going Clear',
+  'Take Your Pills',
+  'The Brainwashing of My Dad',
+  'Dirty Money'
+];
+var truthDocCache = null;
 
 /* Newest-first: curated lists auto-sort by year so the latest release always leads. */
 [FEATURED, MIND_BENDING, MOVIES, TV].forEach(function(arr) {
@@ -5075,6 +5117,7 @@ function refreshAllRows() {
   trendingWeekCache = null;
   renderSpotlight(); renderFeatured();
   renderMindBending();
+  renderTruthDocs();
   renderHomePicks('movie', 'movieGrid'); renderHomePicks('tv', 'tvGrid');
   renderMyList();
   fetchTrending(); fetchTopRated(); fetchNowPlaying();
@@ -5658,6 +5701,62 @@ function renderMindBending() {
   });
 }
 
+function normalizeDocTitle(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function truthDocScore(wanted, item) {
+  var title = normalizeDocTitle(item.title || item.name);
+  var wantedNorm = normalizeDocTitle(wanted);
+  var score = 0;
+  if (title === wantedNorm) score += 100;
+  else if (title.indexOf(wantedNorm) > -1 || wantedNorm.indexOf(title) > -1) score += 35;
+  if (item.poster_path) score += 10;
+  if ((item.genre_ids || []).indexOf(99) > -1) score += 12;
+  score += Math.min(item.vote_count || 0, 500) / 100;
+  return score;
+}
+
+function resolveTruthDocTitle(title) {
+  return tmdbFetch('/search/multi?include_adult=false&query=' + encodeURIComponent(title)).then(function(data) {
+    var results = (data && data.results ? data.results : []).filter(function(item) {
+      return item && (item.media_type === 'movie' || item.media_type === 'tv');
+    });
+    results.sort(function(a, b) { return truthDocScore(title, b) - truthDocScore(title, a); });
+    var best = results[0];
+    if (!best || truthDocScore(title, best) < 35) return null;
+    best.type = best.media_type;
+    return best;
+  }).catch(function(){ return null; });
+}
+
+function loadTruthDocs() {
+  if (truthDocCache) return Promise.resolve(truthDocCache);
+  if (!TMDB_KEY) return Promise.resolve([]);
+  return Promise.all(TRUTH_DOC_TITLES.map(resolveTruthDocTitle)).then(function(items) {
+    var seen = {};
+    truthDocCache = items.filter(function(item) {
+      if (!item || !item.id || !item.media_type) return false;
+      var key = item.media_type + '_' + item.id;
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+    return truthDocCache;
+  });
+}
+
+function renderTruthDocs() {
+  var count = document.getElementById('truthDocCount');
+  if (count) count.textContent = TRUTH_DOC_TITLES.length + ' docs';
+  if (!TMDB_KEY) { rowNotice('truthDocRow', 'TMDB key required', 'Add your API key in Settings to load truth-seeker docs.'); return; }
+  rowNotice('truthDocRow', 'Loading truth-seeker docs', 'Finding eye-opening documentaries and controversial picks.', true);
+  loadTruthDocs().then(function(items) {
+    if (count) count.textContent = items.length + ' docs';
+    renderPosterRow(items, 'truthDocRow', {});
+  });
+}
+
 function rowNotice(containerId, title, detail, loading) {
   var row = document.getElementById(containerId);
   if (!row) return;
@@ -5676,6 +5775,7 @@ function rowFailed(containerId) {
 // type: movie|tv. params: discover filters (no sort_by). endpoint: special non-discover for Featured view.
 var browseCats = {
   mind:       { title:'Mind Bending',       type:'mixed', curated:true },
+  truthdocs:  { title:'Truth-Seeker Docs',  type:'mixed', curated:'truthdocs' },
   trending:   { title:'Top 10 This Week', type:'movie', params:'', endpoint:'/trending/all/week', allowTV:true },
   toprated:   { title:'Top Rated Movies',   type:'movie', params:'vote_count.gte=300', endpoint:'/movie/top_rated' },
   nowplaying: { title:'In Theaters Now',    type:'movie', params:'', endpoint:'/movie/now_playing' },
@@ -5700,6 +5800,10 @@ function renderBrowseControls(cat) {
     }).join('');
     return;
   }
+  if (cat.curated) {
+    sorts.innerHTML = '<button class="bsort active" onclick="setBrowseSort(\'default\',this)">Featured</button>';
+    return;
+  }
   sorts.innerHTML =
     '<button class="bsort active" onclick="setBrowseSort(\'default\',this)">Featured</button>'
     + '<button class="bsort" onclick="setBrowseSort(\'popularity.desc\',this)">Popular</button>'
@@ -5713,6 +5817,12 @@ function getMindFilteredItems() {
   return MIND_BENDING.filter(function(item) {
     return item.tags && item.tags.indexOf(filter) > -1;
   });
+}
+
+function getCuratedBrowseItems() {
+  if (browseKey === 'mind') return hydrateCuratedItems(getMindFilteredItems());
+  if (browseKey === 'truthdocs') return loadTruthDocs();
+  return Promise.resolve([]);
 }
 
 function hydrateCuratedItems(items) {
@@ -5818,8 +5928,8 @@ function loadBrowsePage() {
   if (!cat) return;
   var btn = document.getElementById('browseMoreBtn');
   btn.disabled = true; btn.textContent = 'Loading...';
-  if (cat.curated && browseKey === 'mind') {
-    hydrateCuratedItems(getMindFilteredItems()).then(function(items) {
+  if (cat.curated) {
+    getCuratedBrowseItems().then(function(items) {
       document.getElementById('browseGrid').innerHTML = '';
       var grid = document.getElementById('browseGrid');
       grid.insertAdjacentHTML('beforeend', dropHidden(items).map(function(item, i){ return posterCardHTML(item, i, {}); }).join(''));
@@ -6654,6 +6764,7 @@ fetchTrending();
 /* Featured + Mind Bending hydrate ~30 TMDB items; below the fold, so lazy-load them
    instead of stampeding the API at first paint (cached sessions cost 0 fetches). */
 lazyLoad('mindRow',       renderMindBending);
+lazyLoad('truthDocRow',   renderTruthDocs);
 lazyLoad('featuredRow',   renderFeatured);
 lazyLoad('topRatedRow',   fetchTopRated);
 lazyLoad('nowPlayingRow', fetchNowPlaying);
