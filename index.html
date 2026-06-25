@@ -160,7 +160,8 @@
       padding: 10px 14px; cursor: pointer;
       transition: background 120ms;
     }
-    .sr-item:hover { background: var(--surface2); }
+    .sr-item:hover,
+    .sr-item:focus-visible { background: var(--surface2); outline: none; }
     .sr-item.active { background: var(--surface2); outline: 1px solid rgba(255,255,255,0.1); }
     .sr-item img { width: 36px; height: 54px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
     .sr-item .sr-placeholder { width: 36px; height: 54px; border-radius: 4px; background: var(--surface3); flex-shrink: 0; }
@@ -1209,11 +1210,26 @@
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--rx); padding: 28px;
       width: 400px; max-width: 90vw;
-      max-height: calc(100dvh - 32px); overflow-y: auto;
+      max-height: calc(100dvh - 32px); overflow-y: auto; overflow-x: hidden;
       box-shadow: 0 24px 80px oklch(0% 0 0 / 0.6);
       animation: fadeUp 300ms ease both;
     }
-    .modal h3 { font-family: var(--display); font-size: 22px; font-weight: 400; letter-spacing: 0.04em; margin-bottom: 16px; }
+    .modal, .modal * { box-sizing: border-box; }
+    .modal-headline {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      position: sticky; top: -28px; z-index: 2;
+      margin: -28px -28px 16px; padding: 22px 22px 12px 28px;
+      background: linear-gradient(to bottom, var(--surface) 76%, transparent);
+    }
+    .modal h3 { font-family: var(--display); font-size: 22px; font-weight: 400; letter-spacing: 0.04em; margin: 0; }
+    .modal-close {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 1px solid var(--border); background: var(--surface2); color: var(--text2);
+      cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+      font-size: 16px; line-height: 1; flex: 0 0 auto;
+    }
+    .modal-close:hover,
+    .modal-close:focus-visible { color: #fff; border-color: rgba(255,255,255,0.26); outline: none; }
     .modal-field { margin-bottom: 14px; }
     .modal-field label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; }
     .modal-field input, .modal-field textarea {
@@ -1224,7 +1240,8 @@
     }
     .modal-field textarea { min-height: 86px; resize: vertical; line-height: 1.35; }
     .modal-field input:focus, .modal-field textarea:focus { border-color: var(--accent); }
-    .modal-hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+    .modal-field input[type="password"] { letter-spacing: 0.08em; }
+    .modal-hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; overflow-wrap: anywhere; }
     .modal-actions { display: flex; gap: 8px; margin-top: 20px; }
     .modal-btn {
       padding: 8px 18px; border-radius: var(--r); border: none;
@@ -2060,9 +2077,9 @@
     <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Install
   </button>
 
-  <div class="hdr-btn" onclick="openSettings()" title="Settings">
+  <button class="hdr-btn" type="button" onclick="openSettings()" title="Settings" aria-label="Settings">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-  </div>
+  </button>
 </header>
 
 <!-- Quick nav -->
@@ -2558,21 +2575,24 @@
 
 <!-- Settings modal -->
 <div class="modal-backdrop" id="settingsModal">
-  <div class="modal">
-    <h3>Settings</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal-headline">
+      <h3 id="settingsTitle">Settings</h3>
+      <button class="modal-close" type="button" onclick="closeSettings()" aria-label="Close settings">&#10005;</button>
+    </div>
     <div class="modal-field">
       <label>TMDB API Key</label>
-      <input type="text" id="tmdbKeyInput" placeholder="Enter your TMDB API key">
+      <input type="password" id="tmdbKeyInput" placeholder="Enter your TMDB API key" autocomplete="off" spellcheck="false">
       <div class="modal-hint">Free key from <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--accent)">themoviedb.org/settings/api</a>. Enables poster images and search.</div>
     </div>
     <div class="modal-field">
       <label>Subtitle helper URL <span style="color:var(--muted);font-weight:400">(for VidLink Persian)</span></label>
-      <input type="text" id="subWorkerInput" placeholder="https://streamr-subs.xxx.workers.dev">
+      <input type="url" id="subWorkerInput" placeholder="https://streamr-subs.xxx.workers.dev" autocomplete="off" spellcheck="false">
       <div class="modal-hint">Pre-deployed at <strong>streamr-subs.akila-attribution.workers.dev</strong> (change only if self-hosting). Enables Persian subtitles inside VidLink that stay on in fullscreen, including iPhone.</div>
     </div>
     <div class="modal-field">
       <label>SubDL API Key <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-      <input type="text" id="subdlKeyInput" placeholder="For auto Farsi subtitles">
+      <input type="password" id="subdlKeyInput" placeholder="For auto Farsi subtitles" autocomplete="off" spellcheck="false">
       <div class="modal-hint">Free key from <a href="https://subdl.com/api" target="_blank" style="color:var(--accent)">subdl.com/api</a>. Extra fallback for Cinezo overlay subtitles.</div>
     </div>
     <div class="modal-field">
@@ -2601,10 +2621,10 @@
     </div>
     <div class="modal-field">
       <label>Private Sync Code</label>
-      <textarea id="syncCodeInput" placeholder="Make one private code, then use the same code on each device"></textarea>
+      <textarea id="syncCodeInput" placeholder="Make one private code, then use the same code on each device" autocomplete="off" spellcheck="false"></textarea>
       <div class="modal-hint">Save the same code once on your phone and PC. Streamr will keep hidden titles, My List, Continue Watching, and episode progress matched automatically.</div>
       <div class="modal-hint" id="syncStatusHint">Auto sync is off on this device.</div>
-      <div class="modal-hint" id="appVersionHint">App version: v70</div>
+      <div class="modal-hint" id="appVersionHint">App version: v72</div>
       <div class="modal-actions" style="margin-top:8px">
         <button class="modal-btn secondary" type="button" onclick="saveSyncCode()">Save & Start</button>
         <button class="modal-btn secondary" type="button" onclick="syncNow()">Sync Now</button>
@@ -2621,6 +2641,7 @@
 
 <script>
 var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'cinezo', currentSubtitleLang = 'fa', searchTimeout = null, searchFocusIdx = -1;
+var APP_VERSION = 'v72';
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var SUB_WORKER_DEFAULT = 'https://streamr-subs.akila-attribution.workers.dev';
 var SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
@@ -2896,7 +2917,7 @@ function showRecentSearches(resultsEl) {
   if (!list.length) { resultsEl.classList.remove('on'); return; }
   resultsEl.innerHTML = '<div class="sr-recent-label">Recent searches</div>'
     + list.map(function(q) {
-      return '<div class="sr-item" onclick="runRecentSearch(\''+esc(q)+'\')">'
+      return '<div class="sr-item" role="button" tabindex="0" onclick="runRecentSearch(\''+esc(q)+'\')" onkeydown="activateSearchItem(event,this)">'
         + '<div class="sr-placeholder" style="display:flex;align-items:center;justify-content:center;font-size:14px">&#128269;</div>'
         + '<div class="sr-info"><div class="sr-title">'+htmlEsc(q)+'</div></div></div>';
     }).join('');
@@ -2906,6 +2927,12 @@ function runRecentSearch(q) {
   var input = document.getElementById('headerSearchInput');
   if (input) input.value = q;
   doSearch(q, document.getElementById('headerSearchResults'));
+}
+
+function activateSearchItem(ev, el) {
+  if (ev.key !== 'Enter' && ev.key !== ' ') return;
+  ev.preventDefault();
+  el.click();
 }
 
 function posterImgSize() { return window.innerWidth > 960 ? 'w342' : 'w185'; }
@@ -3133,13 +3160,13 @@ function doSearch(query, resultsEl) {
         var year = (r.release_date || r.first_air_date || '').substring(0, 4);
         var type = r.media_type;
         var poster = r.poster_path ? '<img src="' + TMDB_IMG + 'w92' + r.poster_path + '" alt="">' : '<div class="sr-placeholder"></div>';
-        return '<div class="sr-item" data-sr-id="' + r.id + '" data-sr-type="' + type + '">'
+        return '<div class="sr-item" role="button" tabindex="0" data-sr-id="' + r.id + '" data-sr-type="' + type + '" onclick="openDetail(' + r.id + ',\'' + type + '\',\'' + esc(title) + '\')" onkeydown="activateSearchItem(event,this)">'
           + poster
           + '<div class="sr-info"><div class="sr-title">' + htmlEsc(title) + '</div>'
           + '<div class="sr-meta">' + type.toUpperCase() + ' · ' + year + (r.vote_average ? ' · ★ ' + r.vote_average.toFixed(1) : '') + '</div></div>'
           + '<div class="sr-actions">'
-          + '<button class="sr-btn play" type="button" onclick="playSearchResult(' + r.id + ',\'' + type + '\',\'' + esc(title) + '\')">Play</button>'
-          + '<button class="sr-btn" type="button" onclick="infoFromSearch(' + r.id + ',\'' + type + '\',\'' + esc(title) + '\')">Info</button>'
+          + '<button class="sr-btn play" type="button" onclick="event.stopPropagation();playSearchResult(' + r.id + ',\'' + type + '\',\'' + esc(title) + '\')">Play</button>'
+          + '<button class="sr-btn" type="button" onclick="event.stopPropagation();infoFromSearch(' + r.id + ',\'' + type + '\',\'' + esc(title) + '\')">Info</button>'
           + '</div></div>';
       }).join('');
     }
@@ -5094,6 +5121,7 @@ function toggleGenreHide(gid, el) {
   else { HIDDEN_GENRES.push(gid); el.classList.add('hidden-on'); }
 }
 function openSettings() {
+  lastSettingsTrigger = document.activeElement;
   document.getElementById('tmdbKeyInput').value = TMDB_KEY;
   var subIn = document.getElementById('subdlKeyInput');
   if (subIn) subIn.value = SUBDL_KEY;
@@ -5109,9 +5137,23 @@ function openSettings() {
   updateSyncStatusHint();
   renderGenreHideChips();
   renderHiddenTitlesList();
+  document.body.style.overflow = 'hidden';
   document.getElementById('settingsModal').classList.add('on');
+  setTimeout(function(){
+    var first = document.getElementById('tmdbKeyInput');
+    if (first) first.focus();
+  }, 60);
 }
-function closeSettings() { document.getElementById('settingsModal').classList.remove('on'); }
+var lastSettingsTrigger = null;
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('on');
+  if (!document.querySelector('.browse-overlay.on,.tvhub-overlay.on,.detail-backdrop.on,.person-backdrop.on,.trailer-backdrop.on')) {
+    document.body.style.overflow = '';
+  }
+  if (lastSettingsTrigger && lastSettingsTrigger.focus) {
+    try { lastSettingsTrigger.focus(); } catch(e) {}
+  }
+}
 function refreshAllRows() {
   if (!TMDB_KEY) return;
   trendingWeekCache = null;
@@ -5183,7 +5225,7 @@ function updateSyncStatusHint(text) {
     el.textContent = getSyncCode() ? 'Auto sync is on for this device.' + detail : 'Auto sync is off on this device.';
   }
   var app = document.getElementById('appVersionHint');
-  if (app) app.textContent = 'App version: v70';
+  if (app) app.textContent = 'App version: ' + APP_VERSION;
 }
 function syncEndpoint() {
   var code = getSyncCode();
@@ -5517,6 +5559,9 @@ function clearData() {
 document.getElementById('settingsModal').addEventListener('click', function(e) {
   if (e.target === this) closeSettings();
 });
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('settingsModal').classList.contains('on')) closeSettings();
+});
 
 /* Keyboard */
 document.getElementById('tmdbId').addEventListener('keydown', function(ev) { if (ev.key === 'Enter') loadPlayer(); });
@@ -5535,7 +5580,33 @@ initPlayerPrefs();
 /* Scroll arrows */
 function scrollRow(id, dir) {
   var el = document.getElementById(id);
-  if (el) el.scrollBy({ left: dir * 320, behavior: 'smooth' });
+  if (!el) return;
+  var amount = Math.max(260, Math.round(el.clientWidth * 0.82));
+  el.scrollBy({ left: dir * amount, behavior: 'smooth' });
+}
+
+function enhanceControls() {
+  document.querySelectorAll('.sec-seeall').forEach(function(el) {
+    if (el.dataset.enhanced) return;
+    el.dataset.enhanced = '1';
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    var header = el.closest('.sec-header');
+    var titleEl = header ? header.querySelector('.sec-title') : null;
+    var title = titleEl ? titleEl.textContent.trim() : 'this row';
+    el.setAttribute('aria-label', 'See all ' + title);
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+    });
+  });
+  document.querySelectorAll('.scroll-arrow').forEach(function(btn) {
+    if (btn.dataset.enhanced) return;
+    btn.dataset.enhanced = '1';
+    if (!btn.getAttribute('type')) btn.setAttribute('type', 'button');
+    var isLeft = btn.classList.contains('left');
+    btn.setAttribute('aria-label', isLeft ? 'Scroll row left' : 'Scroll row right');
+    btn.setAttribute('title', isLeft ? 'Scroll left' : 'Scroll right');
+  });
 }
 
 /* ── Cinematic Spotlight ──────────────────────────── */
@@ -6756,6 +6827,7 @@ function initScrollSpy() {
   anchors.forEach(function(el){ scrollSpyObserver.observe(el); });
 }
 initScrollSpy();
+enhanceControls();
 
 renderSpotlight();
 renderCW();
