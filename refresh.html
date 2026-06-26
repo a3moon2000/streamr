@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Refresh Streamr</title>
   <style>
     html, body {
@@ -16,6 +16,12 @@
     button {
       width: 100%; min-height: 48px; border: 0; border-radius: 8px;
       background: #e50914; color: #fff; font-size: 15px; font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+    }
+    button:focus-visible {
+      outline: 3px solid #fff;
+      outline-offset: 3px;
     }
     .status { font-size: 13px; color: #b5b5b5; margin-top: 14px; }
   </style>
@@ -24,24 +30,40 @@
   <main>
     <h1>Refresh Streamr</h1>
     <p>This clears the old saved app shell on this device and opens the newest Streamr build.</p>
-    <button type="button" onclick="refreshStreamr()">Refresh Now</button>
+    <button id="refreshBtn" type="button" onclick="refreshStreamr()">Refresh Now</button>
     <div class="status" id="status">Ready.</div>
   </main>
   <script>
     async function refreshStreamr() {
       var status = document.getElementById('status');
-      status.textContent = 'Clearing old app cache...';
+      var btn = document.getElementById('refreshBtn');
+      var unavailable = [];
+      status.textContent = 'Preparing Streamr refresh...';
+      btn.disabled = true;
+
       try {
-        if ('serviceWorker' in navigator) {
+        if ('serviceWorker' in navigator && navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
           var regs = await navigator.serviceWorker.getRegistrations();
           await Promise.all(regs.map(function(reg) { return reg.unregister(); }));
+        } else {
+          unavailable.push('service worker');
         }
+
         if (window.caches && caches.keys) {
           var keys = await caches.keys();
           await Promise.all(keys.map(function(key) { return caches.delete(key); }));
+        } else {
+          unavailable.push('caches');
         }
-      } catch (e) {}
-      status.textContent = 'Opening latest Streamr...';
+      } catch (e) {
+        unavailable.push('cache clear step');
+      }
+
+      if (unavailable.length) {
+        status.textContent = 'Could not clear ' + unavailable.join(' + ') + '. Opening newest Streamr...';
+      } else {
+        status.textContent = 'Opening latest Streamr...';
+      }
       location.replace('./?fresh=' + Date.now());
     }
   </script>

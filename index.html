@@ -81,6 +81,9 @@
       display: flex; align-items: center; gap: 0;
       transition: opacity 200ms;
       flex-shrink: 0;
+      background: transparent;
+      border: 0;
+      padding: 0;
     }
     .logo:hover { opacity: 0.88; }
     .logo-text {
@@ -1239,7 +1242,7 @@
       font-family: var(--mono); font-size: 13px; outline: none;
     }
     .modal-field textarea { min-height: 86px; resize: vertical; line-height: 1.35; }
-    .modal-field input:focus, .modal-field textarea:focus { border-color: var(--accent); }
+    .modal-field input:focus, .modal-field textarea:focus { border-color: rgba(255,255,255,0.34); box-shadow: 0 0 0 2px rgba(255,255,255,0.08); }
     .modal-field input[type="password"] { letter-spacing: 0.08em; }
     .modal-hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; overflow-wrap: anywhere; }
     .modal-actions { display: flex; gap: 8px; margin-top: 20px; }
@@ -1615,6 +1618,11 @@
       font-size: 13px; font-weight: 600; color: #54b9c5;
       cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;
       transition: color 150ms, opacity 150ms;
+      background: transparent;
+      border: 0;
+      padding: 0;
+      font-family: var(--sans);
+      line-height: 1;
     }
     .sec-seeall:hover { color: #7dd3db; opacity: 0.92; }
     .sec-seeall svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.5; }
@@ -2054,9 +2062,9 @@
 
 <!-- Header -->
 <header>
-  <div class="logo" onclick="goHome()" title="Streamr home">
+  <button class="logo" type="button" onclick="goHome()" title="Streamr home" aria-label="Streamr home">
     <span class="logo-text">STREAMR</span>
-  </div>
+  </button>
 
   <nav class="hdr-nav" aria-label="Browse">
     <button class="hdr-link" type="button" onclick="navTo('navMovies',null)">Movies</button>
@@ -2100,7 +2108,7 @@
     <span class="ptb-ep" id="ptbEp"></span>
     <span class="ptb-title" id="ptbTitle">Now Playing</span>
     <div class="ptb-actions">
-      <span class="ptb-provider" id="ptbProvider">Cinezo</span>
+      <span class="ptb-provider" id="ptbProvider">VidLux</span>
       <button class="ptb-close" onclick="goHome()" title="Close player (Esc)">&#10005;</button>
     </div>
   </div>
@@ -2131,7 +2139,7 @@
       <button class="dock-btn" type="button" onclick="togglePlayerPiP()" title="Picture in Picture" aria-label="Picture in picture">
         <svg viewBox="0 0 24 24"><path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>
       </button>
-      <button class="dock-btn" type="button" onclick="cyclePlayerSource()" title="Switch player (Cinezo / VidLink)" aria-label="Switch player source">
+      <button class="dock-btn" type="button" onclick="cyclePlayerSource()" title="Switch player (VidLux)" aria-label="Switch player source">
         <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
       </button>
     </div>
@@ -2253,7 +2261,7 @@
     <div class="sec-title sec-prime">This Week</div>
     <div class="sec-count" id="trendCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('trending')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('trending')" aria-label="See all Trending">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('trendingRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2266,7 +2274,7 @@
     <div class="sec-title">Mind Bending</div>
     <div class="sec-count" id="mindCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('mind')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('mind')" aria-label="See all Mind Bending">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('mindRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2278,7 +2286,7 @@
     <div class="sec-title">Truth-Seeker Docs</div>
     <div class="sec-count" id="truthDocCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('truthdocs')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('truthdocs')" aria-label="See all Truth Docs">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('truthDocRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2303,7 +2311,7 @@
     <div class="sec-title">Top Rated Movies</div>
     <div class="sec-count" id="topRatedCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('toprated')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('toprated')" aria-label="See all Top Rated">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('topRatedRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2316,7 +2324,7 @@
     <div class="sec-title">In Theaters Now</div>
     <div class="sec-count" id="nowPlayingCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('nowplaying')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('nowplaying')" aria-label="See all Now Playing">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('nowPlayingRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2329,7 +2337,7 @@
     <div class="sec-title">4K Ultra HD</div>
     <div class="sec-count" id="uhdCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('uhd')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('uhd')" aria-label="See all 4K">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('uhdRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2342,7 +2350,7 @@
     <div class="sec-title sec-minor">Bollywood Latest</div>
     <div class="sec-count" id="bollyCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('bolly')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('bolly')" aria-label="See all Bollywood">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('bollyRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2355,7 +2363,7 @@
     <div class="sec-title sec-minor">Persian Cinema</div>
     <div class="sec-count" id="persianCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('persian')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('persian')" aria-label="See all Persian">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('persianRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2368,7 +2376,7 @@
     <div class="sec-title sec-minor">Persian Series</div>
     <div class="sec-count" id="persianTvCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('persiantv')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('persiantv')" aria-label="See all Persian TV">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('persianTvRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2381,7 +2389,7 @@
     <div class="sec-title sec-minor">Anime</div>
     <div class="sec-count" id="animeCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('anime')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('anime')" aria-label="See all Anime">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('animeRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2394,7 +2402,7 @@
     <div class="sec-title sec-minor">Korean Drama</div>
     <div class="sec-count" id="kdramaCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('kdrama')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('kdrama')" aria-label="See all KDrama">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('kdramaRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2407,7 +2415,7 @@
     <div class="sec-title sec-minor">Turkish Drama</div>
     <div class="sec-count" id="turkishCount"></div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('turkish')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('turkish')" aria-label="See all Turkish">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('turkishRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2420,7 +2428,7 @@
     <div class="sec-title sec-minor">Popular Movies</div>
     <div class="sec-count">12 titles</div>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('popmovies')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('popmovies')" aria-label="See all Popular Movies">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="genre-tabs" id="movieGenreTabs">
     <button class="genre-tab active" onclick="filterGenre('movie', 0, this)">All</button>
@@ -2438,7 +2446,7 @@
     <div class="sec-count">12 titles</div>
     <button class="sec-pick-btn" type="button" onclick="openTVHub()">Pick Episodes</button>
     <div class="sec-line"></div>
-    <div class="sec-seeall" onclick="openBrowse('poptv')">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <button class="sec-seeall" type="button" onclick="openBrowse('poptv')" aria-label="See all Popular TV">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="genre-tabs" id="tvGenreTabs">
     <button class="genre-tab active" onclick="filterGenre('tv', 0, this)">All</button>
@@ -2583,17 +2591,17 @@
     <div class="modal-field">
       <label>TMDB API Key</label>
       <input type="password" id="tmdbKeyInput" placeholder="Enter your TMDB API key" autocomplete="off" spellcheck="false">
-      <div class="modal-hint">Free key from <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--accent)">themoviedb.org/settings/api</a>. Enables poster images and search.</div>
+      <div class="modal-hint">Free key from <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">themoviedb.org/settings/api</a>. Enables poster images and search.</div>
     </div>
     <div class="modal-field">
-      <label>Subtitle helper URL <span style="color:var(--muted);font-weight:400">(for VidLink Persian)</span></label>
+      <label>Subtitle helper URL <span style="color:var(--muted);font-weight:400">(for VidLux Persian)</span></label>
       <input type="url" id="subWorkerInput" placeholder="https://streamr-subs.xxx.workers.dev" autocomplete="off" spellcheck="false">
-      <div class="modal-hint">Pre-deployed at <strong>streamr-subs.akila-attribution.workers.dev</strong> (change only if self-hosting). Enables Persian subtitles inside VidLink that stay on in fullscreen, including iPhone.</div>
+      <div class="modal-hint">Pre-deployed at <strong>streamr-subs.akila-attribution.workers.dev</strong> (change only if self-hosting). Enables Persian subtitles inside VidLux that stay on in fullscreen, including iPhone.</div>
     </div>
     <div class="modal-field">
       <label>SubDL API Key <span style="color:var(--muted);font-weight:400">(optional)</span></label>
       <input type="password" id="subdlKeyInput" placeholder="For auto Farsi subtitles" autocomplete="off" spellcheck="false">
-      <div class="modal-hint">Free key from <a href="https://subdl.com/api" target="_blank" style="color:var(--accent)">subdl.com/api</a>. Extra fallback for Cinezo overlay subtitles.</div>
+      <div class="modal-hint">Free key from <a href="https://subdl.com/api" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">subdl.com/api</a>. Extra fallback for VidLux overlay subtitles.</div>
     </div>
     <div class="modal-field">
       <label class="tog-label" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:0">
@@ -2624,7 +2632,7 @@
       <textarea id="syncCodeInput" placeholder="Make one private code, then use the same code on each device" autocomplete="off" spellcheck="false"></textarea>
       <div class="modal-hint">Save the same code once on your phone and PC. Streamr will keep hidden titles, My List, Continue Watching, and episode progress matched automatically.</div>
       <div class="modal-hint" id="syncStatusHint">Auto sync is off on this device.</div>
-      <div class="modal-hint" id="appVersionHint">App version: v72</div>
+      <div class="modal-hint" id="appVersionHint">App version: v73</div>
       <div class="modal-actions" style="margin-top:8px">
         <button class="modal-btn secondary" type="button" onclick="saveSyncCode()">Save & Start</button>
         <button class="modal-btn secondary" type="button" onclick="syncNow()">Sync Now</button>
@@ -2640,8 +2648,8 @@
 </div>
 
 <script>
-var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'cinezo', currentSubtitleLang = 'fa', searchTimeout = null, searchFocusIdx = -1;
-var APP_VERSION = 'v72';
+var currentType = 'movie', currentColor = 'e50914', currentPlayerSource = 'vidlux', currentSubtitleLang = 'fa', searchTimeout = null, searchFocusIdx = -1;
+var APP_VERSION = 'v73';
 var SUBDL_KEY = localStorage.getItem('streamr_subdl_key') || '';
 var SUB_WORKER_DEFAULT = 'https://streamr-subs.akila-attribution.workers.dev';
 var SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
@@ -3335,7 +3343,7 @@ function markPlayerReady(statusText) {
 }
 
 function setPlayerSource(source, manual) {
-  source = normalizePlayerSource(source || 'cinezo');
+  source = normalizePlayerSource(source || 'vidlux');
   if (manual) userPinnedSource = true;
   currentPlayerSource = source;
   try {
@@ -4635,7 +4643,7 @@ function loadExternalFarsiSubtitles(id, type, season, episode) {
         if (SUBDL_KEY && window.JSZip) {
           return loadFarsiFromSubdl(id, type, season, episode).then(cacheDone);
         }
-        setSubtitleStatus('No Persian subtitles found — switch to Cinezo (↻) or add a SubDL key.');
+        setSubtitleStatus('No Persian subtitles found — switch player (↻) or add a SubDL key.');
       });
     return;
   }
@@ -5444,7 +5452,7 @@ function initPlayerPrefs() {
     localStorage.removeItem('streamr_cinezo_server');
     var src = localStorage.getItem('streamr_player_source');
     SUB_WORKER = localStorage.getItem('streamr_sub_worker') || SUB_WORKER_DEFAULT;
-    // Cinezo = popup-free default. Honour VidLink only when the user explicitly opted in
+    // VidLux = popup-free default. Honour VidLink only when the user explicitly opted in
     // (pinned, so the watchdog never silently switches someone who accepted the trade-offs).
     var vlOptin = localStorage.getItem('streamr_vidlink_optin') === '1';
     setPlayerSource('vidlux');
