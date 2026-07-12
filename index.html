@@ -2974,11 +2974,12 @@ function getHiddenKeys() {
 }
 function titleKey(id, type) { return type + '_' + id; }
 function isTitleHidden(id, type) { return getHiddenKeys().indexOf(titleKey(id, type)) > -1; }
-function dropHidden(items) {
+function dropHidden(items, typeHint) {
   if (!items) return items;
   var hiddenKeys = getHiddenKeys();
   return items.filter(function(r){
-    var type = r.media_type || r.type || 'movie';
+    var type = r.media_type || r.type || typeHint || 'movie';
+    if (isCamQuality(r)) return false;
     if (hiddenKeys.indexOf(titleKey(r.id, type)) > -1) return false;
     var g = r.genre_ids || (r.genres ? r.genres.map(function(x){return x.id;}) : []);
     return !g.some(function(id){ return HIDDEN_GENRES.indexOf(id) > -1; });
@@ -5027,7 +5028,7 @@ function renderHomePicks(type, containerId) {
 
 function renderPicks(items, type, containerId) {
   var grid = document.getElementById(containerId);
-  items = items.filter(function(item){ return !isTitleHidden(item.id, type); });
+  items = dropHidden(items, type);
   grid.innerHTML = items.map(function(item, i) {
     var g = GRAD[i % GRAD.length];
     var ck = type + '_' + item.id;
