@@ -622,6 +622,11 @@
       background-size: cover; background-position: center 15%;
       opacity: 0; transition: opacity 900ms ease;
     }
+    .spotlight-bg.fallback {
+      background-image: linear-gradient(180deg, #0f1012 0%, #121417 35%, #17191c 65%, #1b1d21 100%);
+      background-size: cover;
+      background-position: center;
+    }
     .spotlight-bg.on { opacity: 1; }
     .spotlight-grad {
       position: absolute; inset: 0; z-index: 1;
@@ -1838,7 +1843,7 @@
       .cw-card:hover .cw-actions { display: flex; }
       .trending-card.top10-card { flex-basis: min(68vw, 240px); }
       .top10-num { font-size: clamp(56px, 18vw, 88px); margin-right: -12px; }
-      .trending-card { flex-basis: 118px; }
+      .trending-card { flex-basis: 132px; }
       .trending-card .pick-fav { display: flex; }
       .pick-hide, .trending-card .pick-hide, .feat-card .pick-hide, .pick .pick-hide { display: flex; }
       .hidden-title-restore { min-height: 40px; padding: 8px 14px; }
@@ -3159,7 +3164,14 @@ function doSearch(query, resultsEl) {
   resultsEl.classList.add('on');
   pushRecentSearch(query);
   tmdbFetch('/search/multi?query=' + encodeURIComponent(query) + '&include_adult=false').then(function(data) {
-    if (!data || !data.results) return;
+    if (!data || !data.results) {
+      var retryTarget = (resultsEl && resultsEl.id)
+        ? 'document.getElementById(\'' + resultsEl.id + '\')'
+        : 'document.getElementById(\'headerSearchResults\')';
+      resultsEl.innerHTML =
+        '<div class="sr-empty"><div style="margin-bottom:10px">Search is unavailable right now.</div><button class="sr-btn" type="button" onclick="doSearch(\'' + esc(query) + '\',' + retryTarget + ')">Try again</button></div>';
+      return;
+    }
     var items = dropHidden(data.results.filter(function(r){ return r.media_type === 'movie' || r.media_type === 'tv'; })).slice(0, 8);
     if (items.length === 0) {
       resultsEl.innerHTML = '<div class="sr-empty">No results found</div>';
@@ -5624,18 +5636,21 @@ var spotlightSlides = [], spotIndex = 0, spotTimer = null;
 function loadTrendingWeek(cb) {
   if (trendingWeekCache) { cb(trendingWeekCache); return; }
   tmdbFetch('/trending/all/week').then(function(data) {
-    if (!data || !data.results) return;
-    trendingWeekCache = data.results;
-    cb(data.results);
+    trendingWeekCache = data && data.results ? data.results : [];
+    cb(trendingWeekCache);
   });
 }
 
 function renderSpotlight() {
   loadTrendingWeek(function(results) {
-    spotlightSlides = dropHidden(results.filter(function(r){
+    var list = dropHidden((results || []).filter(function(r){
       return (r.media_type === 'movie' || r.media_type === 'tv') && r.backdrop_path && r.overview;
     })).slice(0, 6);
-    if (spotlightSlides.length === 0) return;
+    if (list.length === 0) {
+      renderSpotlightFallback();
+      return;
+    }
+    spotlightSlides = list;
     // Dots
     var dots = document.getElementById('spotlightDots');
     dots.innerHTML = spotlightSlides.map(function(s, i) {
@@ -5644,6 +5659,28 @@ function renderSpotlight() {
     showSpot(0);
     startSpotTimer();
   });
+}
+
+function renderSpotlightFallback() {
+  var bg = document.getElementById('spotlightBg');
+  var dots = document.getElementById('spotlightDots');
+  var content = document.getElementById('spotlightContent');
+  if (!bg || !dots || !content) return;
+  clearInterval(spotTimer);
+  spotlightSlides = [];
+  spotIndex = 0;
+  bg.classList.remove('on');
+  bg.classList.add('fallback');
+  bg.classList.add('on');
+  dots.innerHTML = '';
+  content.innerHTML =
+    '<div class="spotlight-badges"><span class="sp-badge">Featured</span><span class="sp-meta-txt">STREAMR</span></div>'
+    + '<h1 class="spotlight-title">Streamr is ready</h1>'
+    + '<p class="spotlight-overview">Your Streamr home is ready. Search the library now, or open Settings to connect live discovery and playback preferences.</p>'
+    + '<div class="spotlight-actions">'
+    + '<button class="sp-btn play" onclick="var s=document.getElementById(\'headerSearchInput\'); if(s){ s.focus(); window.scrollTo({ top: 0, behavior: \'smooth\' }); }"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>Search titles</button>'
+    + '<button class="sp-btn info" onclick="openSettings()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>Settings</button>'
+    + '</div>';
 }
 
 function showSpot(i) {
@@ -5657,6 +5694,8 @@ function showSpot(i) {
 
   var bg = document.getElementById('spotlightBg');
   bg.classList.remove('on');
+  bg.classList.remove('fallback');
+  bg.style.backgroundImage = '';
   var img = new Image();
   img.src = TMDB_IMG + 'w1280' + s.backdrop_path;
   img.onload = function() {
@@ -5758,6 +5797,7 @@ function renderPosterRow(items, containerId, opts) {
   items = dropHidden(items);
   var row = document.getElementById(containerId);
   if (!row) return;
+  row.removeAttribute('aria-busy');
   row.classList.toggle('top10-row', !!opts.numbered);
   var wrap = row.parentElement && row.parentElement.classList.contains('scroll-wrap') ? row.parentElement : null;
   if (!items || items.length === 0) {
@@ -5840,11 +5880,15 @@ function renderTruthDocs() {
 function rowNotice(containerId, title, detail, loading) {
   var row = document.getElementById(containerId);
   if (!row) return;
+  row.removeAttribute('aria-busy');
   row.innerHTML = '<div class="row-notice'+(loading?' loading':'')+'"><div><strong>'+title+'</strong>'+(detail?'<span>'+detail+'</span>':'')+'</div></div>';
 }
 
 function rowQueued(containerId) {
-  rowNotice(containerId, 'Queued', 'This row loads as you scroll to protect first paint.', true);
+  var row = document.getElementById(containerId);
+  if (!row) return;
+  row.innerHTML = '';
+  row.setAttribute('aria-busy', 'true');
 }
 
 function rowFailed(containerId) {
@@ -6023,7 +6067,14 @@ function loadBrowsePage() {
   tmdbFetch(browsePath(cat, browsePageNum)).then(function(data) {
     var isFirstTrending = browseKey === 'trending' && browsePageNum === 1;
     if (browsePageNum === 1) document.getElementById('browseGrid').innerHTML = '';
-    if (!data || !data.results) { btn.style.display='none'; return; }
+    if (!data || !data.results) {
+      var grid = document.getElementById('browseGrid');
+      if (grid) grid.innerHTML = '<div class="row-notice"><div><strong>Browse feed unavailable</strong><span>Could not load titles from TMDB. Please try again.</span></div></div>';
+      btn.disabled = false;
+      btn.textContent = 'Try again';
+      btn.style.display = '';
+      return;
+    }
     var ftype = cat.allowTV ? null : cat.type;
     var items = dropHidden(data.results.filter(function(r){
       return (r.media_type === 'movie' || r.media_type === 'tv' || ftype) && r.poster_path;
