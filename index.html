@@ -2324,19 +2324,6 @@
     <button class="scroll-arrow right" onclick="scrollRow('topRatedRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
 
-  <!-- Now Playing -->
-  <div class="sec-header">
-    <div class="sec-title">In Theaters Now</div>
-    <div class="sec-count" id="nowPlayingCount"></div>
-    <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('nowplaying')" aria-label="See all Now Playing">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
-  </div>
-  <div class="scroll-wrap">
-    <button class="scroll-arrow left" onclick="scrollRow('nowPlayingRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="trending-row" id="nowPlayingRow"></div>
-    <button class="scroll-arrow right" onclick="scrollRow('nowPlayingRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
-  </div>
-
   <!-- 4K Ultra HD -->
   <div class="sec-header">
     <div class="sec-title">4K Ultra HD</div>
@@ -3066,10 +3053,10 @@ function refreshAfterHide() {
   renderMindBending();
   renderCW();
   renderMyList();
-  renderPicks(MOVIES, 'movie', 'movieGrid');
-  renderPicks(TV, 'tv', 'tvGrid');
+  renderHomePicks('movie', 'movieGrid');
+  renderHomePicks('tv', 'tvGrid');
   if (TMDB_KEY) {
-    fetchTrending(); fetchTopRated(); fetchNowPlaying();
+    fetchTrending(); fetchTopRated();
     fetch4K(); fetchBollywood(); fetchPersian(); fetchPersianTV(); fetchAnime(); fetchKDrama(); fetchTurkish();
   }
   renderHiddenTitlesList();
@@ -4943,11 +4930,24 @@ function renderCW() {
 }
 
 /* Featured */
+var featuredRenderVersion = 0;
 function renderFeatured() {
   var row = document.getElementById('featuredRow');
-  var visible = FEATURED.filter(function(item){ return !isTitleHidden(item.id, item.type); });
-  document.getElementById('featCount').textContent = visible.length + ' picks';
-  row.innerHTML = visible.map(function(item, i) {
+  var renderVersion = ++featuredRenderVersion;
+  loadCuratedBackfill(FEATURED, '/trending/all/week', null, FEATURED.length, function(item) {
+    return item.media_type === 'movie' || item.media_type === 'tv';
+  }).then(function(items) {
+    if (renderVersion !== featuredRenderVersion) return;
+    var visible = items.map(function(item) {
+      return {
+        id: item.id,
+        type: item.type || item.media_type,
+        title: item.title || item.name || 'Untitled',
+        year: item.year || (item.release_date || item.first_air_date || '').substring(0, 4)
+      };
+    });
+    document.getElementById('featCount').textContent = visible.length + ' picks';
+    row.innerHTML = visible.map(function(item, i) {
     var g = GRAD[i % GRAD.length];
     return '<div class="feat-card" id="feat_'+item.type+'_'+item.id+'" onclick="openDetail('+item.id+',\''+item.type+'\',\''+esc(item.title)+'\')">'
       + '<div class="feat-poster-ph" style="background:linear-gradient(135deg,'+g[0]+','+g[1]+')">'+
@@ -4960,33 +4960,34 @@ function renderFeatured() {
       + '<div class="feat-play" onclick="event.stopPropagation();quickPlay('+item.id+',\''+item.type+'\',\''+esc(item.title)+'\')"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>'
       + hideBtnHTML(item.id, item.type, item.title)
       + '</div>';
-  }).join('');
+    }).join('');
 
-  // Fetch backdrops
-  visible.forEach(function(item) {
-    fetchMeta(item.type, item.id, function(meta) {
-      var card = document.getElementById('feat_'+item.type+'_'+item.id);
-      if (!card) return;
-      if (meta.backdrop) {
-        var ph = card.querySelector('.feat-poster-ph');
-        if (ph && !card.querySelector('.feat-poster')) {
-          var img = new Image();
-          img.className = 'feat-poster';
-          img.src = TMDB_IMG + 'w780' + meta.backdrop;
-          img.alt = '';
-          img.onload = function() {
-            if (ph.parentNode) ph.parentNode.insertBefore(img, ph);
-            ph.style.display = 'none';
-          };
+    // Fetch backdrops
+    visible.forEach(function(item) {
+      fetchMeta(item.type, item.id, function(meta) {
+        var card = document.getElementById('feat_'+item.type+'_'+item.id);
+        if (!card) return;
+        if (meta.backdrop) {
+          var ph = card.querySelector('.feat-poster-ph');
+          if (ph && !card.querySelector('.feat-poster')) {
+            var img = new Image();
+            img.className = 'feat-poster';
+            img.src = TMDB_IMG + 'w780' + meta.backdrop;
+            img.alt = '';
+            img.onload = function() {
+              if (ph.parentNode) ph.parentNode.insertBefore(img, ph);
+              ph.style.display = 'none';
+            };
+          }
         }
-      }
-      if (meta.rating || meta.vote_average) {
-        var re = document.getElementById('featrating_'+item.type+'_'+item.id);
-        if (re) {
-          var ms = meta.vote_average ? matchScore(meta.vote_average) : '';
-          re.textContent = (ms ? ms + ' · ' : '') + (meta.rating ? '★ ' + meta.rating : '');
+        if (meta.rating || meta.vote_average) {
+          var re = document.getElementById('featrating_'+item.type+'_'+item.id);
+          if (re) {
+            var ms = meta.vote_average ? matchScore(meta.vote_average) : '';
+            re.textContent = (ms ? ms + ' · ' : '') + (meta.rating ? '★ ' + meta.rating : '');
+          }
         }
-      }
+      });
     });
   });
 }
@@ -5025,13 +5026,14 @@ function fetchLivePicks(type, containerId, genreId, fallbackItems) {
   var grid = document.getElementById(containerId);
   grid.innerHTML = '';
   for (var i = 0; i < 12; i++) grid.insertAdjacentHTML('beforeend', '<div class="skel skel-card"></div>');
-  tmdbFetch(livePicksPath(type, genreId)).then(function(data) {
-    if (!data || !data.results || !data.results.length) {
+  loadBackfilledRows(livePicksPath(type, genreId), type, 12, null, function(r) {
+    return !!r.poster_path;
+  }).then(function(items) {
+    if (!items || !items.length) {
       renderPicks(fallbackItems, type, containerId);
       return;
     }
-    var items = data.results.filter(function(r){ return r.poster_path; }).slice(0, 12).map(function(r){ return tmdbPick(r, type); });
-    renderPicks(items.length ? items : fallbackItems, type, containerId);
+    renderPicks(items.map(function(r){ return tmdbPick(r, type); }), type, containerId);
   });
 }
 function renderHomePicks(type, containerId) {
@@ -5183,7 +5185,7 @@ function refreshAllRows() {
   renderTruthDocs();
   renderHomePicks('movie', 'movieGrid'); renderHomePicks('tv', 'tvGrid');
   renderMyList();
-  fetchTrending(); fetchTopRated(); fetchNowPlaying();
+  fetchTrending(); fetchTopRated();
   fetch4K(); fetchBollywood(); fetchPersian(); fetchPersianTV(); fetchAnime(); fetchKDrama(); fetchTurkish();
 }
 function saveSettings() {
@@ -5642,10 +5644,9 @@ function loadTrendingWeek(cb) {
 }
 
 function renderSpotlight() {
-  loadTrendingWeek(function(results) {
-    var list = dropHidden((results || []).filter(function(r){
-      return (r.media_type === 'movie' || r.media_type === 'tv') && r.backdrop_path && r.overview;
-    })).slice(0, 6);
+  loadBackfilledRows('/trending/all/week', null, 6, null, function(r) {
+    return (r.media_type === 'movie' || r.media_type === 'tv') && r.backdrop_path && r.overview;
+  }).then(function(list) {
     if (list.length === 0) {
       renderSpotlightFallback();
       return;
@@ -5813,11 +5814,19 @@ function renderPosterRow(items, containerId, opts) {
   row.classList.add('row-anim');
 }
 
+var mindRenderVersion = 0;
 function renderMindBending() {
-  document.getElementById('mindCount').textContent = MIND_BENDING.length + ' picks';
+  var renderVersion = ++mindRenderVersion;
   rowNotice('mindRow', 'Loading mind bending picks', 'Pulling posters and ratings from TMDB.', true);
-  hydrateCuratedItems(MIND_BENDING).then(function(items) {
-    renderPosterRow(items, 'mindRow', {});
+  loadCuratedBackfill(MIND_BENDING, '/discover/movie?with_genres=878&sort_by=popularity.desc&vote_count.gte=100', 'movie', MIND_BENDING.length)
+    .then(function(items) {
+      if (renderVersion !== mindRenderVersion) return null;
+      items.forEach(function(item) { item.type = item.type || item.media_type || 'movie'; });
+      document.getElementById('mindCount').textContent = items.length + ' picks';
+      return hydrateCuratedItems(items);
+    }).then(function(items) {
+      if (!items || renderVersion !== mindRenderVersion) return;
+      renderPosterRow(items, 'mindRow', {});
   });
 }
 
@@ -5866,12 +5875,17 @@ function loadTruthDocs() {
   });
 }
 
+var truthDocRenderVersion = 0;
 function renderTruthDocs() {
+  var renderVersion = ++truthDocRenderVersion;
   var count = document.getElementById('truthDocCount');
   if (count) count.textContent = TRUTH_DOC_TITLES.length + ' docs';
   if (!TMDB_KEY) { rowNotice('truthDocRow', 'TMDB key required', 'Add your API key in Settings to load truth-seeker docs.'); return; }
   rowNotice('truthDocRow', 'Loading truth-seeker docs', 'Finding eye-opening documentaries and controversial picks.', true);
   loadTruthDocs().then(function(items) {
+    return loadCuratedBackfill(items, '/discover/movie?with_genres=99&sort_by=popularity.desc&vote_count.gte=20', 'movie', TRUTH_DOC_TITLES.length);
+  }).then(function(items) {
+    if (renderVersion !== truthDocRenderVersion) return;
     if (count) count.textContent = items.length + ' docs';
     renderPosterRow(items, 'truthDocRow', {});
   });
@@ -5895,6 +5909,51 @@ function rowFailed(containerId) {
   rowNotice(containerId, 'Could not load this row', 'TMDB did not return usable titles. Try refresh or check the API key.');
 }
 
+// TMDB returns only one page by default. Keep fetching until a row is full after
+// hidden titles/genres are removed, so hiding a title immediately backfills it.
+var ROW_BACKFILL_MAX_PAGES = 5;
+function rowPagePath(path, page) {
+  return page > 1 ? path + (path.indexOf('?') > -1 ? '&' : '?') + 'page=' + page : path;
+}
+function rowItemKey(item, type) {
+  return (item.media_type || item.type || type || 'movie') + '_' + item.id;
+}
+function loadBackfilledRows(path, type, limit, sortItems, itemFilter, excludedKeys) {
+  var page = 1, all = [], seen = {};
+  function loadPage() {
+    return tmdbFetch(rowPagePath(path, page)).then(function(data) {
+      var results = data && data.results ? data.results : [];
+      results.forEach(function(item) {
+        if (!item || !item.id) return;
+        if (type && !item.media_type) item.media_type = type;
+        var key = rowItemKey(item, type);
+        if (seen[key]) return;
+        seen[key] = true;
+        all.push(item);
+      });
+      if (sortItems) all.sort(sortItems);
+      var visible = dropHidden(all, type);
+      if (itemFilter) visible = visible.filter(itemFilter);
+      if (excludedKeys) visible = visible.filter(function(item){ return !excludedKeys[rowItemKey(item, type)]; });
+      var totalPages = data && data.total_pages ? data.total_pages : page;
+      if (visible.length < limit && results.length && page < totalPages && page < ROW_BACKFILL_MAX_PAGES) {
+        page++;
+        return loadPage();
+      }
+      return visible.slice(0, limit);
+    });
+  }
+  return loadPage();
+}
+function loadCuratedBackfill(items, path, type, limit, itemFilter) {
+  var curated = dropHidden(items, type).slice(0, limit);
+  if (!TMDB_KEY || curated.length >= limit) return Promise.resolve(curated);
+  var excludedKeys = {};
+  items.forEach(function(item) { excludedKeys[rowItemKey(item, type)] = true; });
+  return loadBackfilledRows(path, type, limit - curated.length, null, itemFilter, excludedKeys)
+    .then(function(fallback) { return curated.concat(fallback).slice(0, limit); });
+}
+
 /* ── Browse overlay (See all) ─────────────────────── */
 // type: movie|tv. params: discover filters (no sort_by). endpoint: special non-discover for Featured view.
 var browseCats = {
@@ -5902,7 +5961,6 @@ var browseCats = {
   truthdocs:  { title:'Truth-Seeker Docs',  type:'mixed', curated:'truthdocs' },
   trending:   { title:'Top 10 This Week', type:'movie', params:'', endpoint:'/trending/all/week', allowTV:true },
   toprated:   { title:'Top Rated Movies',   type:'movie', params:'vote_count.gte=300', endpoint:'/movie/top_rated' },
-  nowplaying: { title:'In Theaters Now',    type:'movie', params:'', endpoint:'/movie/now_playing' },
   uhd:        { title:'4K Ultra HD',        type:'movie', params:'primary_release_date.gte=2022-01-01&vote_count.gte=400&with_original_language=en' },
   bolly:      { title:'Bollywood Latest',   type:'movie', params:'with_original_language=hi&vote_count.gte=12', defaultSort:'primary_release_date.desc' },
   persian:    { title:'Persian Cinema',     type:'movie', params:'with_original_language=fa&vote_count.gte=3' },
@@ -6334,9 +6392,10 @@ function skeletonRow(containerId, count, top10) {
 function fetchTrending() {
   if (!TMDB_KEY) { rowNotice('trendingRow', 'TMDB key required', 'Add your API key in Settings to load live rows.'); return; }
   skeletonRow('trendingRow', 10, true);
-  loadTrendingWeek(function(results) {
-    if (!results) { rowFailed('trendingRow'); return; }
-    var items = results.filter(function(r){ return r.media_type === 'movie' || r.media_type === 'tv'; }).slice(0, 10);
+  loadBackfilledRows('/trending/all/week', null, 10, null, function(r) {
+    return r.media_type === 'movie' || r.media_type === 'tv';
+  }).then(function(items) {
+    if (!items.length) { rowFailed('trendingRow'); return; }
     document.getElementById('trendCount').textContent = 'updated weekly';
     renderPosterRow(items, 'trendingRow', { numbered: true });
   });
@@ -6345,24 +6404,12 @@ function fetchTrending() {
 function fetchTopRated() {
   if (!TMDB_KEY) { rowNotice('topRatedRow', 'TMDB key required', 'Add your API key in Settings to load top rated movies.'); return; }
   skeletonRow('topRatedRow', 10);
-  tmdbFetch('/movie/top_rated').then(function(data) {
-    if (!data || !data.results) { rowFailed('topRatedRow'); return; }
-    var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
-    items.sort(function(a, b) { return (b.release_date || '').localeCompare(a.release_date || ''); });
+  loadBackfilledRows('/movie/top_rated', 'movie', 20, function(a, b) {
+    return (b.release_date || '').localeCompare(a.release_date || '');
+  }).then(function(items) {
+    if (!items.length) { rowFailed('topRatedRow'); return; }
     document.getElementById('topRatedCount').textContent = 'all time';
     renderPosterRow(items, 'topRatedRow', {});
-  });
-}
-
-function fetchNowPlaying() {
-  if (!TMDB_KEY) { rowNotice('nowPlayingRow', 'TMDB key required', 'Add your API key in Settings to load theater releases.'); return; }
-  skeletonRow('nowPlayingRow', 10);
-  tmdbFetch('/movie/now_playing').then(function(data) {
-    if (!data || !data.results) { rowFailed('nowPlayingRow'); return; }
-    var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
-    items.sort(function(a, b) { return (b.release_date || '').localeCompare(a.release_date || ''); });
-    document.getElementById('nowPlayingCount').textContent = items.length + ' in cinemas';
-    renderPosterRow(items, 'nowPlayingRow', {});
   });
 }
 
@@ -6370,9 +6417,8 @@ function fetch4K() {
   if (!TMDB_KEY) { rowNotice('uhdRow', 'TMDB key required', 'Add your API key in Settings to load Ultra HD picks.'); return; }
   skeletonRow('uhdRow', 10);
   // No 4K flag in TMDB. Recent vote-heavy blockbusters most likely to have 4K sources, newest first.
-  tmdbFetch('/discover/movie?sort_by=primary_release_date.desc&primary_release_date.gte=2022-01-01&primary_release_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=400&with_original_language=en').then(function(data) {
-    if (!data || !data.results) { rowFailed('uhdRow'); return; }
-    var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
+  loadBackfilledRows('/discover/movie?sort_by=primary_release_date.desc&primary_release_date.gte=2022-01-01&primary_release_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=400&with_original_language=en', 'movie', 20).then(function(items) {
+    if (!items.length) { rowFailed('uhdRow'); return; }
     document.getElementById('uhdCount').textContent = 'premium quality';
     renderPosterRow(items, 'uhdRow', {});
   });
@@ -6382,9 +6428,8 @@ function fetchBollywood() {
   if (!TMDB_KEY) { rowNotice('bollyRow', 'TMDB key required', 'Add your API key in Settings to load Bollywood picks.'); return; }
   skeletonRow('bollyRow', 10);
   // Hindi-language films, recent first
-  tmdbFetch('/discover/movie?with_original_language=hi&sort_by=primary_release_date.desc&vote_count.gte=12&primary_release_date.lte=' + new Date().toISOString().slice(0,10)).then(function(data) {
-    if (!data || !data.results) { rowFailed('bollyRow'); return; }
-    var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
+  loadBackfilledRows('/discover/movie?with_original_language=hi&sort_by=primary_release_date.desc&vote_count.gte=12&primary_release_date.lte=' + new Date().toISOString().slice(0,10), 'movie', 20).then(function(items) {
+    if (!items.length) { rowFailed('bollyRow'); return; }
     document.getElementById('bollyCount').textContent = 'fresh releases';
     renderPosterRow(items, 'bollyRow', {});
   });
@@ -6394,9 +6439,8 @@ function fetchPersian() {
   if (!TMDB_KEY) { rowNotice('persianRow', 'TMDB key required', 'Add your API key in Settings to load Persian cinema.'); return; }
   skeletonRow('persianRow', 10);
   // Persian / Farsi-language films, newest first (smaller catalog, lower vote threshold)
-  tmdbFetch('/discover/movie?with_original_language=fa&sort_by=primary_release_date.desc&primary_release_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=3').then(function(data) {
-    if (!data || !data.results) { rowFailed('persianRow'); return; }
-    var items = data.results.slice(0, 20).map(function(r){ r.media_type='movie'; return r; });
+  loadBackfilledRows('/discover/movie?with_original_language=fa&sort_by=primary_release_date.desc&primary_release_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=3', 'movie', 20).then(function(items) {
+    if (!items.length) { rowFailed('persianRow'); return; }
     document.getElementById('persianCount').textContent = items.length + ' titles';
     renderPosterRow(items, 'persianRow', {});
   });
@@ -6406,9 +6450,8 @@ function fetchAnime() {
   if (!TMDB_KEY) { rowNotice('animeRow', 'TMDB key required', 'Add your API key in Settings to load Anime.'); return; }
   skeletonRow('animeRow', 10);
   // Japanese animation TV (genre 16 = Animation), newest first
-  tmdbFetch('/discover/tv?with_genres=16&with_original_language=ja&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=50').then(function(data) {
-    if (!data || !data.results) { rowFailed('animeRow'); return; }
-    var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
+  loadBackfilledRows('/discover/tv?with_genres=16&with_original_language=ja&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=50', 'tv', 20).then(function(items) {
+    if (!items.length) { rowFailed('animeRow'); return; }
     document.getElementById('animeCount').textContent = 'top series';
     renderPosterRow(items, 'animeRow', {});
   });
@@ -6418,9 +6461,8 @@ function fetchKDrama() {
   if (!TMDB_KEY) { rowNotice('kdramaRow', 'TMDB key required', 'Add your API key in Settings to load Korean Drama.'); return; }
   skeletonRow('kdramaRow', 10);
   // Korean-language TV, newest first
-  tmdbFetch('/discover/tv?with_original_language=ko&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=40').then(function(data) {
-    if (!data || !data.results) { rowFailed('kdramaRow'); return; }
-    var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
+  loadBackfilledRows('/discover/tv?with_original_language=ko&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=40', 'tv', 20).then(function(items) {
+    if (!items.length) { rowFailed('kdramaRow'); return; }
     document.getElementById('kdramaCount').textContent = 'top series';
     renderPosterRow(items, 'kdramaRow', {});
   });
@@ -6430,9 +6472,8 @@ function fetchPersianTV() {
   if (!TMDB_KEY) { rowNotice('persianTvRow', 'TMDB key required', 'Add your API key in Settings to load Persian series.'); return; }
   skeletonRow('persianTvRow', 10);
   // Persian / Farsi-language TV series, newest first (small catalog, low vote threshold)
-  tmdbFetch('/discover/tv?with_original_language=fa&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=2').then(function(data) {
-    if (!data || !data.results) { rowFailed('persianTvRow'); return; }
-    var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
+  loadBackfilledRows('/discover/tv?with_original_language=fa&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=2', 'tv', 20).then(function(items) {
+    if (!items.length) { rowFailed('persianTvRow'); return; }
     document.getElementById('persianTvCount').textContent = items.length + ' series';
     renderPosterRow(items, 'persianTvRow', {});
   });
@@ -6442,9 +6483,8 @@ function fetchTurkish() {
   if (!TMDB_KEY) { rowNotice('turkishRow', 'TMDB key required', 'Add your API key in Settings to load Turkish drama.'); return; }
   skeletonRow('turkishRow', 10);
   // Turkish-language TV (dizi), newest first
-  tmdbFetch('/discover/tv?with_original_language=tr&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=25').then(function(data) {
-    if (!data || !data.results) { rowFailed('turkishRow'); return; }
-    var items = data.results.slice(0, 20).map(function(r){ r.media_type='tv'; return r; });
+  loadBackfilledRows('/discover/tv?with_original_language=tr&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=25', 'tv', 20).then(function(items) {
+    if (!items.length) { rowFailed('turkishRow'); return; }
     document.getElementById('turkishCount').textContent = 'top dizi';
     renderPosterRow(items, 'turkishRow', {});
   });
@@ -6899,7 +6939,6 @@ lazyLoad('mindRow',       renderMindBending);
 lazyLoad('truthDocRow',   renderTruthDocs);
 lazyLoad('featuredRow',   renderFeatured);
 lazyLoad('topRatedRow',   fetchTopRated);
-lazyLoad('nowPlayingRow', fetchNowPlaying);
 lazyLoad('uhdRow',        fetch4K);
 lazyLoad('bollyRow',      fetchBollywood);
 lazyLoad('persianRow',    fetchPersian);
