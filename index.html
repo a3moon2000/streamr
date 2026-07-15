@@ -5890,7 +5890,7 @@ function prefetchDetail(id, type) {
 
 function renderPosterRow(items, containerId, opts) {
   opts = opts || {};
-  items = dropHidden(items);
+  items = opts.preserveCurated ? items : dropHidden(items);
   var row = document.getElementById(containerId);
   if (!row) return;
   row.removeAttribute('aria-busy');
@@ -5916,7 +5916,7 @@ function renderMindBending() {
   document.getElementById('mindCount').textContent = MIND_BENDING.length + ' picks';
   hydrateCuratedItems(MIND_BENDING, true).then(function(items) {
     if (renderVersion !== mindRenderVersion) return;
-    renderPosterRow(items, 'mindRow', {});
+    renderPosterRow(items, 'mindRow', { preserveCurated: true });
   });
 }
 
@@ -6227,7 +6227,8 @@ function loadBrowsePage() {
     getCuratedBrowseItems().then(function(items) {
       document.getElementById('browseGrid').innerHTML = '';
       var grid = document.getElementById('browseGrid');
-      grid.insertAdjacentHTML('beforeend', dropHidden(items).map(function(item, i){ return posterCardHTML(item, i, {}); }).join(''));
+      var visibleCuratedItems = browseKey === 'mind' ? items : dropHidden(items);
+      grid.insertAdjacentHTML('beforeend', visibleCuratedItems.map(function(item, i){ return posterCardHTML(item, i, {}); }).join(''));
       browseItems = items;
       btn.disabled = false;
       btn.textContent = 'Load More';
