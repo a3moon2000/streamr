@@ -5845,8 +5845,9 @@ function posterCardHTML(item, i, opts) {
   var type = item.media_type || item.type || 'movie';
   var posterPath = item.poster_path || item.poster;
   var pSize = posterImgSize();
+  var imageLoading = opts.eagerFirst && i < opts.eagerFirst ? 'eager' : 'lazy';
   var poster = posterPath
-    ? '<img src="'+TMDB_IMG+pSize+posterPath+'" alt="" loading="lazy" decoding="async" onload="this.closest(\'.pick-poster\').classList.add(\'has-img\')">'
+    ? '<img src="'+TMDB_IMG+pSize+posterPath+'" alt="" loading="'+imageLoading+'" decoding="async" onload="this.closest(\'.pick-poster\').classList.add(\'has-img\')">'
     : '';
   var rating = item.vote_average ? '★ ' + item.vote_average.toFixed(1) : (item.rating ? '★ '+item.rating : '');
   var badge = isNewRelease(item) ? '<div class="pick-badge new">NEW</div>' : '<div class="pick-badge">'+type.toUpperCase()+'</div>';
@@ -5910,13 +5911,14 @@ function renderPosterRow(items, containerId, opts) {
 }
 
 var mindRenderVersion = 0;
+var MIND_HOME_LIMIT = 18;
 function renderMindBending() {
   var renderVersion = ++mindRenderVersion;
   rowNotice('mindRow', 'Loading mind bending picks', 'Pulling posters and ratings from TMDB.', true);
-  document.getElementById('mindCount').textContent = MIND_BENDING.length + ' picks';
-  hydrateCuratedItems(MIND_BENDING, true).then(function(items) {
+  document.getElementById('mindCount').textContent = MIND_HOME_LIMIT + ' featured';
+  hydrateCuratedItems(MIND_BENDING.slice(0, MIND_HOME_LIMIT), true).then(function(items) {
     if (renderVersion !== mindRenderVersion) return;
-    renderPosterRow(items, 'mindRow', { preserveCurated: true });
+    renderPosterRow(items, 'mindRow', { preserveCurated: true, eagerFirst: 6 });
   });
 }
 
