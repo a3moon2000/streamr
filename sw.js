@@ -1,11 +1,10 @@
 /* Streamr service worker - app shell cache for installability + offline shell */
-var CACHE = 'streamr-v76';
+var CACHE = 'streamr-v77';
 var SHELL = ['./', './index.html', './icon.svg', './manifest.json',
              './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', function(e) {
-  e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(SHELL); }));
-  // Do NOT call skipWaiting here; wait for explicit page signal (two-stage update).
+  e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(SHELL); }).then(function(){ return self.skipWaiting(); }));
 });
 
 self.addEventListener('message', function(e) {
