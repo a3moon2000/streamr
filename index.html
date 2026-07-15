@@ -1645,7 +1645,7 @@
     }
     .browse-overlay.on { display: block; animation: fadeIn 250ms ease both; }
     .browse-head {
-      position: sticky; top: 0; z-index: 5;
+      position: sticky; top: 0; z-index: 20; isolation: isolate;
       background: rgba(20, 20, 20, 0.96); backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border);
       padding: 16px 32px; display: flex; flex-direction: column; gap: 10px;
