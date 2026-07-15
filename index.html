@@ -5914,7 +5914,7 @@ function renderMindBending() {
   var renderVersion = ++mindRenderVersion;
   rowNotice('mindRow', 'Loading mind bending picks', 'Pulling posters and ratings from TMDB.', true);
   document.getElementById('mindCount').textContent = MIND_BENDING.length + ' picks';
-  hydrateCuratedItems(MIND_BENDING).then(function(items) {
+  hydrateCuratedItems(MIND_BENDING, true).then(function(items) {
     if (renderVersion !== mindRenderVersion) return;
     renderPosterRow(items, 'mindRow', {});
   });
@@ -6092,12 +6092,12 @@ function getMindFilteredItems() {
 }
 
 function getCuratedBrowseItems() {
-  if (browseKey === 'mind') return hydrateCuratedItems(getMindFilteredItems());
+  if (browseKey === 'mind') return hydrateCuratedItems(getMindFilteredItems(), true);
   if (browseKey === 'truthdocs') return loadTruthDocs();
   return Promise.resolve([]);
 }
 
-function hydrateCuratedItems(items) {
+function hydrateCuratedItems(items, preserveCurated) {
   if (!TMDB_KEY) return Promise.resolve(items);
   return Promise.all(items.map(function(item) {
     var cck = item.type + '_' + item.id;
@@ -6145,7 +6145,7 @@ function hydrateCuratedItems(items) {
     }).catch(function(){ return item; });
   })).then(function(hydrated) {
     persistMetaCaches();
-    return dropHidden(hydrated);
+    return preserveCurated ? hydrated : dropHidden(hydrated);
   });
 }
 
