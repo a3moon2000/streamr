@@ -2008,10 +2008,25 @@
       .browse-head {
         padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px;
         top: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px 12px;
+        align-items: center;
       }
       .browse-head h2 { font-size: 22px; }
       .browse-close { width: 44px; height: 44px; }
-      .bsort { min-height: 40px; padding: 8px 14px; }
+      .browse-head .spacer { display: none; }
+      .browse-sorts {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        padding: 0 1px 2px;
+      }
+      .browse-sorts::-webkit-scrollbar { display: none; }
+      .bsort { flex: 0 0 auto; min-height: 38px; padding: 7px 13px; }
       .browse-body { padding: 18px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
       .browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
       .browse-more-btn { min-height: 44px; width: 100%; max-width: 320px; }
@@ -2530,13 +2545,13 @@
   <div class="browse-head">
     <h2 id="browseTitle">Browse</h2>
     <div class="browse-sorts" id="browseSorts">
-      <button class="bsort active" onclick="setBrowseSort('default',this)">Featured</button>
-      <button class="bsort" onclick="setBrowseSort('popularity.desc',this)">Popular</button>
-      <button class="bsort" onclick="setBrowseSort('newest',this)">Newest</button>
-      <button class="bsort" onclick="setBrowseSort('rating',this)">Top Rated</button>
+      <button class="bsort active" type="button" data-browse-sort="default">Featured</button>
+      <button class="bsort" type="button" data-browse-sort="popularity.desc">Popular</button>
+      <button class="bsort" type="button" data-browse-sort="newest">Newest</button>
+      <button class="bsort" type="button" data-browse-sort="rating">Top Rated</button>
     </div>
     <div class="spacer"></div>
-    <button class="browse-close" onclick="closeBrowse()">&#10005;</button>
+    <button class="browse-close" type="button" data-close-browse aria-label="Close browse">&#10005;</button>
   </div>
   <div class="browse-body">
     <div class="browse-grid" id="browseGrid"></div>
@@ -6089,19 +6104,19 @@ function renderBrowseControls(cat) {
   sorts.style.display = '';
   if (cat.curated && browseKey === 'mind') {
     sorts.innerHTML = MIND_FILTERS.map(function(f, i) {
-      return '<button class="bsort'+(i===0?' active':'')+'" onclick="setBrowseSort(\'mind:'+f.key+'\',this)">'+f.label+'</button>';
+      return '<button class="bsort'+(i===0?' active':'')+'" type="button" data-browse-sort="mind:'+f.key+'">'+f.label+'</button>';
     }).join('');
     return;
   }
   if (cat.curated) {
-    sorts.innerHTML = '<button class="bsort active" onclick="setBrowseSort(\'default\',this)">Featured</button>';
+    sorts.innerHTML = '<button class="bsort active" type="button" data-browse-sort="default">Featured</button>';
     return;
   }
   sorts.innerHTML =
-    '<button class="bsort active" onclick="setBrowseSort(\'default\',this)">Featured</button>'
-    + '<button class="bsort" onclick="setBrowseSort(\'popularity.desc\',this)">Popular</button>'
-    + '<button class="bsort" onclick="setBrowseSort(\'newest\',this)">Newest</button>'
-    + '<button class="bsort" onclick="setBrowseSort(\'rating\',this)">Top Rated</button>';
+    '<button class="bsort active" type="button" data-browse-sort="default">Featured</button>'
+    + '<button class="bsort" type="button" data-browse-sort="popularity.desc">Popular</button>'
+    + '<button class="bsort" type="button" data-browse-sort="newest">Newest</button>'
+    + '<button class="bsort" type="button" data-browse-sort="rating">Top Rated</button>';
 }
 
 function getMindFilteredItems() {
@@ -6205,6 +6220,20 @@ function bindBrowseSeeAllButtons() {
   });
 }
 bindBrowseSeeAllButtons();
+document.addEventListener('click', function(e) {
+  if (!e.target || !e.target.closest) return;
+  var sortBtn = e.target.closest('.bsort[data-browse-sort]');
+  if (sortBtn) {
+    e.preventDefault();
+    setBrowseSort(sortBtn.getAttribute('data-browse-sort'), sortBtn);
+    return;
+  }
+  var closeBtn = e.target.closest('[data-close-browse]');
+  if (closeBtn) {
+    e.preventDefault();
+    closeBrowse();
+  }
+});
 
 function setBrowseSort(sort, btn) {
   browseSort = sort;
