@@ -2266,7 +2266,7 @@
     <div class="sec-title sec-prime">This Week</div>
     <div class="sec-count" id="trendCount"></div>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('trending')" aria-label="See all Trending">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="trending" aria-label="See all Trending">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('trendingRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2279,7 +2279,7 @@
     <div class="sec-title">Mind Bending</div>
     <div class="sec-count" id="mindCount"></div>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('mind')" aria-label="See all Mind Bending">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="mind" aria-label="See all Mind Bending">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('mindRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2291,7 +2291,7 @@
     <div class="sec-title">Truth-Seeker Docs</div>
     <div class="sec-count" id="truthDocCount"></div>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('truthdocs')" aria-label="See all Truth Docs">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="truthdocs" aria-label="See all Truth Docs">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('truthDocRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2316,7 +2316,7 @@
     <div class="sec-title">Top Rated Movies</div>
     <div class="sec-count" id="topRatedCount"></div>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('toprated')" aria-label="See all Top Rated">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="toprated" aria-label="See all Top Rated">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('topRatedRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2329,7 +2329,7 @@
     <div class="sec-title">4K Ultra HD</div>
     <div class="sec-count" id="uhdCount"></div>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('uhd')" aria-label="See all 4K">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="uhd" aria-label="See all 4K">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('uhdRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2342,7 +2342,7 @@
     <div class="sec-title sec-minor">Bollywood Latest</div>
     <div class="sec-count" id="bollyCount"></div>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('bolly')" aria-label="See all Bollywood">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="bolly" aria-label="See all Bollywood">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('bollyRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2355,7 +2355,7 @@
     <div class="sec-title sec-minor">Persian Cinema</div>
     <div class="sec-count" id="persianCount"></div>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('persian')" aria-label="See all Persian">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="persian" aria-label="See all Persian">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('persianRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2368,7 +2368,7 @@
     <div class="sec-title sec-minor">Persian Series</div>
     <div class="sec-count" id="persianTvCount"></div>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('persiantv')" aria-label="See all Persian TV">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="persiantv" aria-label="See all Persian TV">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('persianTvRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2381,7 +2381,7 @@
     <div class="sec-title sec-minor">Anime</div>
     <div class="sec-count" id="animeCount"></div>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('anime')" aria-label="See all Anime">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="anime" aria-label="See all Anime">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('animeRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2394,7 +2394,7 @@
     <div class="sec-title sec-minor">Korean Drama</div>
     <div class="sec-count" id="kdramaCount"></div>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('kdrama')" aria-label="See all KDrama">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="kdrama" aria-label="See all KDrama">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="scroll-wrap">
     <button class="scroll-arrow left" onclick="scrollRow('kdramaRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2407,7 +2407,7 @@
     <div class="sec-title sec-minor">Popular Movies</div>
     <div class="sec-count">12 titles</div>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('popmovies')" aria-label="See all Popular Movies">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="popmovies" aria-label="See all Popular Movies">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="genre-tabs" id="movieGenreTabs">
     <button class="genre-tab active" onclick="filterGenre('movie', 0, this)">All</button>
@@ -2425,7 +2425,7 @@
     <div class="sec-count">12 titles</div>
     <button class="sec-pick-btn" type="button" onclick="openTVHub()">Pick Episodes</button>
     <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('poptv')" aria-label="See all Popular TV">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="sec-seeall" type="button" data-browse-key="poptv" aria-label="See all Popular TV">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="genre-tabs" id="tvGenreTabs">
     <button class="genre-tab active" onclick="filterGenre('tv', 0, this)">All</button>
@@ -6094,6 +6094,26 @@ function openBrowse(key) {
   document.getElementById('browseOverlay').scrollTop = 0;
   loadBrowsePage();
 }
+
+var browseEntriesBound = false;
+function bindBrowseSeeAllButtons() {
+  if (browseEntriesBound) return;
+  browseEntriesBound = true;
+  document.querySelectorAll('.sec-seeall[data-browse-key]').forEach(function(btn) {
+    if (btn.removeAttribute) btn.removeAttribute('onclick');
+  });
+  document.addEventListener('click', function(e) {
+    if (e.defaultPrevented) return;
+    if (!e.target || !e.target.closest) return;
+    var btn = e.target.closest('.sec-seeall[data-browse-key]');
+    if (!btn) return;
+    var key = btn.getAttribute('data-browse-key');
+    if (!key) return;
+    e.preventDefault();
+    if (typeof openBrowse === 'function') openBrowse(key);
+  });
+}
+bindBrowseSeeAllButtons();
 
 function setBrowseSort(sort, btn) {
   browseSort = sort;
