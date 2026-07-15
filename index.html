@@ -5913,15 +5913,10 @@ var mindRenderVersion = 0;
 function renderMindBending() {
   var renderVersion = ++mindRenderVersion;
   rowNotice('mindRow', 'Loading mind bending picks', 'Pulling posters and ratings from TMDB.', true);
-  loadCuratedBackfill(MIND_BENDING, '/discover/movie?with_genres=878&sort_by=popularity.desc&vote_count.gte=100', 'movie', MIND_BENDING.length)
-    .then(function(items) {
-      if (renderVersion !== mindRenderVersion) return null;
-      items.forEach(function(item) { item.type = item.type || item.media_type || 'movie'; });
-      document.getElementById('mindCount').textContent = items.length + ' picks';
-      return hydrateCuratedItems(items);
-    }).then(function(items) {
-      if (!items || renderVersion !== mindRenderVersion) return;
-      renderPosterRow(items, 'mindRow', {});
+  document.getElementById('mindCount').textContent = MIND_BENDING.length + ' picks';
+  hydrateCuratedItems(MIND_BENDING).then(function(items) {
+    if (renderVersion !== mindRenderVersion) return;
+    renderPosterRow(items, 'mindRow', {});
   });
 }
 
