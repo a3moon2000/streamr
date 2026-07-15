@@ -1647,19 +1647,34 @@
       position: sticky; top: 0; z-index: 5;
       background: rgba(20, 20, 20, 0.96); backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border);
-      padding: 16px 32px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding: 16px 32px; display: flex; flex-direction: column; gap: 10px;
     }
-    .browse-head h2 { font-family: var(--display); font-size: 32px; font-weight: 400; letter-spacing: 0.04em; }
-    .browse-head .spacer { flex: 1; }
-    .browse-sorts { display: flex; gap: 6px; flex-wrap: wrap; }
-    .bsort {
+    .browse-head-top { display: flex; align-items: center; width: 100%; gap: 14px; }
+    .browse-head-top h2 {
+      font-family: var(--display); font-size: 32px; font-weight: 400; letter-spacing: 0.04em;
+      flex: 1; min-width: 0;
+    }
+    .browse-sorts,
+    .browse-filters {
+      display: flex; gap: 6px; flex-wrap: nowrap;
+      overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+      -ms-overflow-style: none; white-space: nowrap; padding: 0 1px 2px;
+    }
+    .browse-sorts::-webkit-scrollbar,
+    .browse-filters::-webkit-scrollbar { display: none; }
+    .browse-filters { display: none; }
+    .browse-filters.on { display: flex; }
+    .bsort,
+    .bfilter {
       padding: 6px 14px; border-radius: 18px;
       border: 1px solid var(--border); background: transparent;
       color: var(--text2); font-family: var(--sans); font-size: 12px; font-weight: 500;
       cursor: pointer; transition: all 150ms; white-space: nowrap;
     }
-    .bsort:hover { border-color: var(--text2); color: var(--text); }
-    .bsort.active { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+    .bsort:hover,
+    .bfilter:hover { border-color: var(--text2); color: var(--text); }
+    .bsort.active,
+    .bfilter.active { background: var(--accent); border-color: var(--accent); color: #ffffff; }
     .browse-close {
       width: 38px; height: 38px; border-radius: 10px;
       background: var(--surface2); border: 1px solid var(--border);
@@ -2008,25 +2023,16 @@
       .browse-head {
         padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px;
         top: 0;
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 10px 12px;
         align-items: center;
+        gap: 10px;
       }
       .browse-head h2 { font-size: 22px; }
       .browse-close { width: 44px; height: 44px; }
-      .browse-head .spacer { display: none; }
-      .browse-sorts {
-        grid-column: 1 / -1;
-        display: flex;
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        overscroll-behavior-x: contain;
-        scrollbar-width: none;
-        padding: 0 1px 2px;
-      }
-      .browse-sorts::-webkit-scrollbar { display: none; }
-      .bsort { flex: 0 0 auto; min-height: 38px; padding: 7px 13px; }
+      .browse-head-top h2 { margin-right: 0; }
+      .browse-sorts { padding-right: 0.5px; }
+      .browse-filters { padding-right: 0.5px; }
+      .bsort,
+      .bfilter { flex: 0 0 auto; min-height: 38px; padding: 7px 13px; }
       .browse-body { padding: 18px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
       .browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
       .browse-more-btn { min-height: 44px; width: 100%; max-width: 320px; }
@@ -2543,15 +2549,12 @@
 <!-- Browse overlay -->
 <div class="browse-overlay" id="browseOverlay">
   <div class="browse-head">
-    <h2 id="browseTitle">Browse</h2>
-    <div class="browse-sorts" id="browseSorts">
-      <button class="bsort active" type="button" data-browse-sort="default">Featured</button>
-      <button class="bsort" type="button" data-browse-sort="popularity.desc">Popular</button>
-      <button class="bsort" type="button" data-browse-sort="newest">Newest</button>
-      <button class="bsort" type="button" data-browse-sort="rating">Top Rated</button>
+    <div class="browse-head-top">
+      <h2 id="browseTitle">Browse</h2>
+      <button class="browse-close" type="button" data-close-browse aria-label="Close browse">&#10005;</button>
     </div>
-    <div class="spacer"></div>
-    <button class="browse-close" type="button" data-close-browse aria-label="Close browse">&#10005;</button>
+    <div class="browse-sorts" id="browseSorts"></div>
+    <div class="browse-filters" id="browseFilters" aria-label="Mind Bending filters"></div>
   </div>
   <div class="browse-body">
     <div class="browse-grid" id="browseGrid"></div>
@@ -2815,8 +2818,8 @@ var MIND_BENDING = [
 
 var MIND_FILTERS = [
   { key:'all', label:'All' },
-  { key:'movie', label:'Movies' },
-  { key:'show', label:'Shows' },
+  { key:'movie', label:'Movies', type:'kind' },
+  { key:'show', label:'Shows', type:'kind' },
   { key:'sci-fi', label:'Sci-Fi' },
   { key:'psych', label:'Psychological' },
   { key:'time', label:'Time' },
@@ -6097,39 +6100,75 @@ var browseCats = {
   popmovies:  { title:'Popular Movies',     type:'movie', params:'vote_count.gte=150&without_genres=27' },
   poptv:      { title:'Popular TV Shows',   type:'tv',    params:'vote_count.gte=100' }
 };
-var browseKey = null, browsePageNum = 1, browseItems = [], browseSort = 'default';
+var BROWSE_SORTS = [
+  { key: 'default', label: 'Featured' },
+  { key: 'newest', label: 'Newest' },
+  { key: 'rating', label: 'Highest Rated' }
+];
+var browseKey = null, browsePageNum = 1, browseItems = [], browseSort = 'default', browseFilters = ['all'];
 
-function renderBrowseControls(cat) {
-  var sorts = document.getElementById('browseSorts');
-  sorts.style.display = '';
-  if (cat.curated && browseKey === 'mind') {
-    sorts.innerHTML = MIND_FILTERS.map(function(f, i) {
-      return '<button class="bsort'+(i===0?' active':'')+'" type="button" data-browse-sort="mind:'+f.key+'">'+f.label+'</button>';
-    }).join('');
-    return;
-  }
-  if (cat.curated) {
-    sorts.innerHTML = '<button class="bsort active" type="button" data-browse-sort="default">Featured</button>';
-    return;
-  }
-  sorts.innerHTML =
-    '<button class="bsort active" type="button" data-browse-sort="default">Featured</button>'
-    + '<button class="bsort" type="button" data-browse-sort="popularity.desc">Popular</button>'
-    + '<button class="bsort" type="button" data-browse-sort="newest">Newest</button>'
-    + '<button class="bsort" type="button" data-browse-sort="rating">Top Rated</button>';
+function getBrowseFilterState() {
+  if (!Array.isArray(browseFilters) || !browseFilters.length) return ['all'];
+  return browseFilters.slice();
+}
+
+function isMindFilter(filter) {
+  return filter === 'movie' || filter === 'show';
 }
 
 function getMindFilteredItems() {
-  var filter = browseSort.indexOf('mind:') === 0 ? browseSort.replace('mind:', '') : 'all';
-  if (filter === 'all') return MIND_BENDING;
+  var filters = getBrowseFilterState();
+  var hasReset = filters.indexOf('all') > -1;
+  if (filters.length === 0 || hasReset) return MIND_BENDING;
+  var kindFilters = filters.filter(isMindFilter);
+  var otherFilters = filters.filter(function(f) { return !isMindFilter(f); });
   return MIND_BENDING.filter(function(item) {
-    return item.tags && item.tags.indexOf(filter) > -1;
+    var tags = item.tags || [];
+    var kindMatch = !kindFilters.length || kindFilters.some(function(kind) { return tags.indexOf(kind) > -1; });
+    var otherMatch = otherFilters.every(function(f) { return tags.indexOf(f) > -1; });
+    return kindMatch && otherMatch;
   });
 }
 
+function getMindYear(item) {
+  return parseInt(String(item.first_air_date || item.release_date || item.year || '').slice(0, 4), 10) || 0;
+}
+
+function getMindRating(item) {
+  return parseFloat(item.vote_average) || 0;
+}
+
+function sortMindItems(items) {
+  var sorted = items.slice();
+  if (browseSort === 'newest') {
+    sorted.sort(function(a, b) { return getMindYear(b) - getMindYear(a); });
+  } else if (browseSort === 'rating') {
+    sorted.sort(function(a, b) { return getMindRating(b) - getMindRating(a); });
+  }
+  return sorted;
+}
+
+function renderBrowseControls(cat) {
+  var sorts = document.getElementById('browseSorts');
+  var filters = document.getElementById('browseFilters');
+  sorts.innerHTML = BROWSE_SORTS.map(function(sort) {
+    return '<button class="bsort'+(browseSort === sort.key ? ' active' : '')+'" type="button" data-browse-sort="'+sort.key+'">'+sort.label+'</button>';
+  }).join('');
+  if (cat.curated && browseKey === 'mind') {
+    var activeFilters = getBrowseFilterState();
+    filters.innerHTML = MIND_FILTERS.map(function(f) {
+      return '<button class="bfilter'+(activeFilters.indexOf(f.key) > -1 ? ' active' : '')+'" type="button" data-browse-filter="'+f.key+'">'+f.label+'</button>';
+    }).join('');
+    filters.classList.add('on');
+  } else {
+    filters.classList.remove('on');
+    filters.innerHTML = '';
+  }
+}
+
 function getCuratedBrowseItems() {
-  if (browseKey === 'mind') return hydrateCuratedItems(getMindFilteredItems(), true);
-  if (browseKey === 'truthdocs') return loadTruthDocs();
+  if (browseKey === 'mind') return hydrateCuratedItems(getMindFilteredItems(), true).then(sortMindItems);
+  if (browseKey === 'truthdocs') return loadTruthDocs().then(sortMindItems);
   return Promise.resolve([]);
 }
 
@@ -6187,6 +6226,7 @@ function hydrateCuratedItems(items, preserveCurated) {
 
 function openBrowse(key) {
   browseKey = key; browsePageNum = 1; browseItems = []; browseSort = 'default';
+  browseFilters = browseKey === 'mind' ? ['all'] : [];
   var cat = browseCats[key];
   if (!cat) return;
   document.getElementById('browseTitle').textContent = cat.title;
@@ -6228,6 +6268,12 @@ document.addEventListener('click', function(e) {
     setBrowseSort(sortBtn.getAttribute('data-browse-sort'), sortBtn);
     return;
   }
+  var filterBtn = e.target.closest('[data-browse-filter]');
+  if (filterBtn) {
+    e.preventDefault();
+    setBrowseFilter(filterBtn.getAttribute('data-browse-filter'));
+    return;
+  }
   var closeBtn = e.target.closest('[data-close-browse]');
   if (closeBtn) {
     e.preventDefault();
@@ -6235,11 +6281,33 @@ document.addEventListener('click', function(e) {
   }
 });
 
+function setBrowseFilter(filter) {
+  if (browseKey !== 'mind' || !filter) return;
+  var nextFilters = getBrowseFilterState();
+  if (filter === 'all') {
+    nextFilters = ['all'];
+  } else {
+    nextFilters = nextFilters.filter(function(f) { return f !== 'all'; });
+    var i = nextFilters.indexOf(filter);
+    if (i > -1) nextFilters.splice(i, 1);
+    else nextFilters.push(filter);
+    if (!nextFilters.length) nextFilters = ['all'];
+  }
+  browseFilters = nextFilters;
+  renderBrowseControls(browseCats[browseKey] || { title:'Browse' });
+  setBrowseSort(browseSort);
+}
+
 function setBrowseSort(sort, btn) {
+  if (!sort) sort = 'default';
   browseSort = sort;
   browsePageNum = 1; browseItems = [];
-  document.querySelectorAll('.bsort').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.bsort[data-browse-sort]').forEach(function(b){ b.classList.remove('active'); });
   if (btn) btn.classList.add('active');
+  else {
+    var sortBtn = document.querySelector('.bsort[data-browse-sort="'+sort+'"]');
+    if (sortBtn) sortBtn.classList.add('active');
+  }
   var grid = document.getElementById('browseGrid');
   grid.innerHTML = '';
   for (var i = 0; i < 18; i++) grid.insertAdjacentHTML('beforeend', '<div class="skel skel-card"></div>');
