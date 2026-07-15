@@ -2619,6 +2619,7 @@
       </div>
     </div>
     <div class="modal-actions">
+      <button class="modal-btn secondary" type="button" id="settingsRefreshUpdateBtn">Refresh &amp; update app</button>
       <button class="modal-btn primary" onclick="saveSettings()">Save</button>
       <button class="modal-btn secondary" onclick="closeSettings()">Cancel</button>
       <button class="modal-btn secondary" onclick="clearData()" style="margin-left:auto;color:oklch(65% 0.2 25)">Clear All Data</button>
@@ -5599,6 +5600,78 @@ function clearData() {
     closeSettings(); location.reload();
   }
 }
+function refreshAndUpdateApp() {
+  var refreshBtn = document.getElementById('settingsRefreshUpdateBtn');
+  if (refreshBtn) {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = 'Refreshing…';
+  }
+
+  function reloadWithCacheBust() {
+    var url = new URL(location.href);
+    url.searchParams.set('_streamr_update', String(Date.now()));
+    location.assign(url.toString());
+  }
+
+  function waitForController() {
+    return new Promise(function(resolve) {
+      if (!('serviceWorker' in navigator) || !navigator.serviceWorker) {
+        resolve();
+        return;
+      }
+      var done = false;
+      var timeout = setTimeout(function() {
+        if (done) return;
+        done = true;
+        navigator.serviceWorker.removeEventListener('controllerchange', onController);
+        resolve();
+      }, 3000);
+      function onController() {
+        if (done) return;
+        done = true;
+        clearTimeout(timeout);
+        navigator.serviceWorker.removeEventListener('controllerchange', onController);
+        resolve();
+      }
+      navigator.serviceWorker.addEventListener('controllerchange', onController);
+    });
+  }
+
+  function requestUpdate(reg) {
+    if (!reg) return Promise.resolve(false);
+    if (reg.waiting) {
+      reg.waiting.postMessage('skipWaiting');
+      return waitForController().then(function(){ return true; });
+    }
+    return reg.update()
+      .then(function() {
+        if (reg.waiting) {
+          reg.waiting.postMessage('skipWaiting');
+          return waitForController().then(function(){ return true; });
+        }
+        return false;
+      })
+      .catch(function(){ return false; });
+  }
+
+  if (!('serviceWorker' in navigator) || !navigator.serviceWorker || !navigator.serviceWorker.getRegistration) {
+    reloadWithCacheBust();
+    return;
+  }
+
+  navigator.serviceWorker.getRegistration().then(function(reg) {
+    return requestUpdate(reg);
+  }).then(function() {
+    reloadWithCacheBust();
+  }).catch(function() {
+    reloadWithCacheBust();
+  }).finally(function() {
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = 'Refresh & update app';
+    }
+  });
+}
 document.getElementById('settingsModal').addEventListener('click', function(e) {
   if (e.target === this) closeSettings();
 });
@@ -5617,6 +5690,8 @@ if (settingsEpEl) settingsEpEl.addEventListener('change', function() {
   if (epSel) epSel.checked = settingsEpEl.checked;
   savePlayerPrefs();
 });
+var settingsRefreshUpdateBtn = document.getElementById('settingsRefreshUpdateBtn');
+if (settingsRefreshUpdateBtn) settingsRefreshUpdateBtn.addEventListener('click', refreshAndUpdateApp);
 window.addEventListener('beforeunload', function() { flushHistoryStore(); });
 initPlayerPrefs();
 
