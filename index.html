@@ -244,6 +244,11 @@
     .qn-pill:hover { color: var(--text); }
     .qn-pill.active { color: var(--text); font-weight: 700; border-bottom-color: var(--accent); }
     .scroll-anchor { scroll-margin-top: calc(var(--hdr-h) + var(--nav-h) + 16px); }
+    @media (max-width: 640px) {
+      .quicknav { display: flex !important; opacity: 0; pointer-events: none; transform: translateY(-8px); }
+      header.hdr-solid ~ .quicknav { opacity: 1; pointer-events: auto; transform: none; }
+      .qn-pill { padding: 8px 0; margin-right: 16px; font-size: 12px; }
+    }
 
     /* Mobile bottom tab bar (shown ≤640px) */
     .mob-nav {
@@ -2097,14 +2102,15 @@
 
 <!-- Quick nav -->
 <nav class="quicknav" id="quicknav">
-  <button class="qn-pill active" onclick="navTo('top',this)">Home</button>
-  <button class="qn-pill" onclick="navTo('navTrending',this)">Trending</button>
-  <button class="qn-pill" onclick="navTo('navMovies',this)">Movies</button>
-  <button class="qn-pill" onclick="navTo('navTV',this)">TV Shows</button>
-  <button class="qn-pill" onclick="navTo('navAnime',this)">Anime</button>
-  <button class="qn-pill" onclick="navTo('navKdrama',this)">K-Drama</button>
-  <button class="qn-pill" onclick="navTo('navWorld',this)">World</button>
-  <button class="qn-pill" id="qnMyList" style="display:none" onclick="navTo('navMyList',this)">My List</button>
+  <button class="qn-pill active" type="button" data-nav-target="top">Home</button>
+  <button class="qn-pill" type="button" data-nav-target="navTrending">Trending</button>
+  <button class="qn-pill" type="button" data-nav-target="navMind">Mind Bending</button>
+  <button class="qn-pill" type="button" data-nav-target="navMovies">Movies</button>
+  <button class="qn-pill" type="button" data-nav-target="navTV">TV Shows</button>
+  <button class="qn-pill" type="button" data-nav-target="navAnime">Anime</button>
+  <button class="qn-pill" type="button" data-nav-target="navKdrama">K-Drama</button>
+  <button class="qn-pill" type="button" data-nav-target="navWorld">World</button>
+  <button class="qn-pill" type="button" id="qnMyList" style="display:none" data-nav-target="navMyList">My List</button>
 </nav>
 
 <!-- Player section (hidden until play) -->
@@ -2275,7 +2281,7 @@
   </div>
 
   <!-- Mind Bending -->
-  <div class="sec-header">
+  <div class="sec-header scroll-anchor" id="navMind">
     <div class="sec-title">Mind Bending</div>
     <div class="sec-count" id="mindCount"></div>
     <div class="sec-line"></div>
@@ -5533,6 +5539,18 @@ function navTo(id, pill) {
   var y = el.getBoundingClientRect().top + window.pageYOffset - getNavOffset();
   window.scrollTo({ top: y, behavior: 'smooth' });
 }
+function bindQuickNavButtons() {
+  document.addEventListener('click', function(e) {
+    if (!e.target || !e.target.closest) return;
+    var pill = e.target.closest('.qn-pill[data-nav-target]');
+    if (!pill) return;
+    var target = pill.getAttribute('data-nav-target');
+    if (!target) return;
+    e.preventDefault();
+    navTo(target, pill);
+  });
+}
+bindQuickNavButtons();
 function setMobTab(tab) {
   document.querySelectorAll('.mob-nav-btn').forEach(function(b){
     b.classList.toggle('active', b.dataset.tab === tab);
