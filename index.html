@@ -2402,19 +2402,6 @@
     <button class="scroll-arrow right" onclick="scrollRow('kdramaRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
 
-  <!-- Turkish Drama -->
-  <div class="sec-header">
-    <div class="sec-title sec-minor">Turkish Drama</div>
-    <div class="sec-count" id="turkishCount"></div>
-    <div class="sec-line"></div>
-    <button class="sec-seeall" type="button" onclick="openBrowse('turkish')" aria-label="See all Turkish">See all <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
-  </div>
-  <div class="scroll-wrap">
-    <button class="scroll-arrow left" onclick="scrollRow('turkishRow',-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="trending-row" id="turkishRow"></div>
-    <button class="scroll-arrow right" onclick="scrollRow('turkishRow',1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
-  </div>
-
   <!-- Movies -->
   <div class="sec-header scroll-anchor" id="navMovies">
     <div class="sec-title sec-minor">Popular Movies</div>
@@ -3090,7 +3077,7 @@ function refreshAfterHide() {
   renderHomePicks('tv', 'tvGrid');
   if (TMDB_KEY) {
     fetchTrending(); fetchTopRated();
-    fetch4K(); fetchBollywood(); fetchPersian(); fetchPersianTV(); fetchAnime(); fetchKDrama(); fetchTurkish();
+    fetch4K(); fetchBollywood(); fetchPersian(); fetchPersianTV(); fetchAnime(); fetchKDrama();
   }
   renderHiddenTitlesList();
   if (document.getElementById('browseOverlay').classList.contains('on')) {
@@ -5219,7 +5206,7 @@ function refreshAllRows() {
   renderHomePicks('movie', 'movieGrid'); renderHomePicks('tv', 'tvGrid');
   renderMyList();
   fetchTrending(); fetchTopRated();
-  fetch4K(); fetchBollywood(); fetchPersian(); fetchPersianTV(); fetchAnime(); fetchKDrama(); fetchTurkish();
+  fetch4K(); fetchBollywood(); fetchPersian(); fetchPersianTV(); fetchAnime(); fetchKDrama();
 }
 function saveSettings() {
   var key = document.getElementById('tmdbKeyInput').value.trim();
@@ -6521,17 +6508,6 @@ function fetchPersianTV() {
   });
 }
 
-function fetchTurkish() {
-  if (!TMDB_KEY) { rowNotice('turkishRow', 'TMDB key required', 'Add your API key in Settings to load Turkish drama.'); return; }
-  skeletonRow('turkishRow', 10);
-  // Turkish-language TV (dizi), newest first
-  loadBackfilledRows('/discover/tv?with_original_language=tr&sort_by=first_air_date.desc&first_air_date.lte=' + new Date().toISOString().slice(0,10) + '&vote_count.gte=25', 'tv', 20).then(function(items) {
-    if (!items.length) { rowFailed('turkishRow'); return; }
-    document.getElementById('turkishCount').textContent = 'top dizi';
-    renderPosterRow(items, 'turkishRow', {});
-  });
-}
-
 /* ── My List ──────────────────────────────────────── */
 var LK = 'streamr_list_v1';
 function getList() { try { return JSON.parse(localStorage.getItem(LK)) || []; } catch(e) { return []; } }
@@ -6992,7 +6968,6 @@ lazyLoad('persianRow',    fetchPersian);
 lazyLoad('persianTvRow',  fetchPersianTV);
 lazyLoad('animeRow',      fetchAnime);
 lazyLoad('kdramaRow',     fetchKDrama);
-lazyLoad('turkishRow',    fetchTurkish);
 lazyLoad('movieGrid',     function(){ renderHomePicks('movie', 'movieGrid'); });
 lazyLoad('tvGrid',        function(){ renderHomePicks('tv', 'tvGrid'); });
 
