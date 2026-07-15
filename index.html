@@ -7104,21 +7104,14 @@ startStreamrSync();
 })();
 
 // PWA service worker
-// Two-stage SW update: the new worker waits until the user taps the update banner, so a
-// mid-session takeover can never mix old page code with a new cache (the old stale-version bug).
+// Automatic PWA update: activate the new worker immediately; controllerchange below reloads
+// only when the player is closed, so active viewing is never interrupted.
 function showUpdateBanner(worker) {
-  if (document.getElementById('swUpdateBanner')) return;
-  var b = document.createElement('button');
-  b.id = 'swUpdateBanner'; b.type = 'button';
-  b.textContent = 'Update ready — tap to refresh';
-  b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(74px + env(safe-area-inset-bottom,0px));z-index:400;padding:12px 20px;border-radius:22px;border:none;background:var(--accent);color:#fff;font-family:var(--sans);font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 8px 28px rgba(0,0,0,0.5);';
-  b.onclick = function() { b.disabled = true; b.textContent = 'Updating…'; worker.postMessage('skipWaiting'); };
-  document.body.appendChild(b);
+  if (worker) worker.postMessage('skipWaiting');
 }
 // App-content update check. The SW-update path only fires when sw.js itself changes, but
 // most deploys only touch index.html — so we also compare the server's ETag for index.html
-// against the one captured at load. When it differs, the app file changed: show the banner
-// and reload (the SW is network-first, so the reload fetches the new version).
+// against the one captured at load. When it differs, reload into the latest app shell.
 var appEtag = null;
 function headAppVersion() {
   return fetch('index.html', { method: 'HEAD', cache: 'no-store' })
@@ -7140,7 +7133,7 @@ function checkAppVersion() {
   headAppVersion().then(function(tag) {
     if (!tag) return;
     if (appEtag === null) { appEtag = tag; return; }
-    if (tag !== appEtag) showReloadBanner();
+    if (tag !== appEtag) location.reload();
   });
 }
 if ('serviceWorker' in navigator) {
