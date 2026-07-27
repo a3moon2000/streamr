@@ -2004,7 +2004,10 @@
       body.player-mode .sw input:checked + .sw-track::before {
         transform: translateX(18px);
       }
-      .detail-backdrop, .person-backdrop { padding: 0; align-items: stretch; }
+      /* flex-start, not stretch: stretch forces the panel to exactly the backdrop's
+         height, and .detail's overflow:hidden then clips every section below the
+         fold with nothing left for the backdrop to scroll. */
+      .detail-backdrop, .person-backdrop { padding: 0; align-items: flex-start; }
       .detail, .person-card { width: 100%; max-width: 100%; min-height: 100dvh; margin: 0; border-radius: 0; border-left: 0; border-right: 0; }
       .detail-close, .person-close { position: fixed; top: calc(env(safe-area-inset-top) + 12px); right: 12px; width: 40px; height: 40px; z-index: 460; background: oklch(10% 0 0 / 0.72); }
       .detail-title { font-size: 31px; letter-spacing: -0.5px; }
