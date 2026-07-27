@@ -4016,8 +4016,7 @@ function loadPlayer(id, type, s, e, progress, title) {
   s    = s    || document.getElementById('season').value  || 1;
   e    = e    || document.getElementById('episode').value || 1;
   if (!id) return;
-  openInCineby(id, type, s, e, title);
-  return;
+  loadPlayerLegacyEmbed(id, type, s, e, progress, title);
 }
 
 function loadPlayerLegacyEmbed(id, type, s, e, progress, title) {
