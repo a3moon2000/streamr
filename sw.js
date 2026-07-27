@@ -1,5 +1,5 @@
 /* Streamr service worker - app shell cache for installability + offline shell */
-var CACHE = 'streamr-v82';
+var CACHE = 'streamr-v83';
 var SHELL = ['./', './index.html', './icon.svg', './manifest.json',
              './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 

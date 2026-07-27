@@ -1667,10 +1667,10 @@
       -ms-overflow-style: none; white-space: nowrap; padding: 0 1px 2px;
       width: 100%; min-width: 0; max-width: 100%;
     }
-    .browse-sorts::-webkit-scrollbar,
+    .browse-sorts::-webkit-scrollbar { display: none; }
     .browse-filters::-webkit-scrollbar { display: none; }
     .browse-filters { display: none; }
-    .browse-filters.on { display: flex; }
+    .browse-filters.on { display: flex; flex-wrap: wrap; overflow-x: visible; white-space: normal; }
     .bsort,
     .bfilter {
       padding: 6px 14px; border-radius: 18px;
@@ -1682,6 +1682,20 @@
     .bfilter:hover { border-color: var(--text2); color: var(--text); }
     .bsort.active,
     .bfilter.active { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+    .browse-filter {
+      display: flex; flex: 1 1 180px; min-width: 0;
+    }
+    .browse-filter-control {
+      width: 100%; min-height: 34px;
+      border: 1px solid var(--border); border-radius: 10px;
+      background: var(--surface2); color: var(--text);
+      font-family: var(--sans); font-size: 12px;
+      cursor: pointer; padding: 6px 10px;
+    }
+    .browse-filter-control option { color: #111111; }
+    .browse-filter-control:focus-visible {
+      outline: 1px solid var(--accent); outline-offset: 1px;
+    }
     .browse-close {
       width: 38px; height: 38px; border-radius: 10px;
       background: var(--surface2); border: 1px solid var(--border);
@@ -2050,9 +2064,11 @@
       .bsort,
       .bfilter { flex: 0 0 auto; min-height: 38px; padding: 7px 13px; }
       .browse-body { padding: 18px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
-      .browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-      .browse-more-btn { min-height: 44px; width: 100%; max-width: 320px; }
-      .modal-backdrop { align-items: flex-end; padding: 0; }
+    .browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .browse-more-btn { min-height: 44px; width: 100%; max-width: 320px; }
+    .browse-filter { flex: 0 1 140px; }
+    .browse-filter-control { min-height: 38px; }
+    .modal-backdrop { align-items: flex-end; padding: 0; }
       .modal {
         width: 100%;
         max-width: 100%;
@@ -2570,7 +2586,7 @@
       <button class="browse-close" type="button" data-close-browse aria-label="Close browse">&#10005;</button>
     </div>
     <div class="browse-sorts" id="browseSorts"></div>
-    <div class="browse-filters" id="browseFilters" aria-label="Mind Bending filters"></div>
+    <div class="browse-filters" id="browseFilters" aria-label="Browse filters"></div>
   </div>
   <div class="browse-body">
     <div class="browse-grid" id="browseGrid"></div>
@@ -2998,6 +3014,15 @@ function isTitleHidden(id, type) { return getHiddenKeys().indexOf(titleKey(id, t
 // TMDB is catalogue metadata, not proof that a title can be streamed. Keep only
 // released, well-formed movie/TV records in the client catalogue; playback
 // availability is deliberately not inferred from this check.
+function isCatalogRecordValid(item, typeHint) {
+  if (!item) return false;
+  if (!Number.isInteger(Number(item.id)) || Number(item.id) <= 0) return false;
+  var type = item.media_type || item.type || typeHint;
+  if (type !== 'movie' && type !== 'tv') return false;
+  var title = String(item.title || item.name || item.original_title || item.original_name || '').trim();
+  if (!title) return false;
+  return true;
+}
 function catalogDateStamp(value) {
   var match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(value || ''));
   if (!match) return null;
@@ -3007,11 +3032,9 @@ function catalogDateStamp(value) {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? stamp : null;
 }
 function isCatalogEligible(item, typeHint) {
-  if (!item || !Number.isInteger(Number(item.id)) || Number(item.id) <= 0) return false;
+  if (!isCatalogRecordValid(item, typeHint)) return false;
   var type = item.media_type || item.type || typeHint;
   if (type !== 'movie' && type !== 'tv') return false;
-  var title = String(item.title || item.name || item.original_title || item.original_name || '').trim();
-  if (!title) return false;
   var rawDate = type === 'tv' ? item.first_air_date : item.release_date;
   if (rawDate) {
     var releaseStamp = catalogDateStamp(rawDate);
@@ -6134,9 +6157,52 @@ var browseCats = {
 var BROWSE_SORTS = [
   { key: 'default', label: 'Featured' },
   { key: 'newest', label: 'Newest' },
+  { key: 'popular', label: 'Most Popular' },
   { key: 'rating', label: 'Highest Rated' }
 ];
+var BROWSE_MOVIE_GENRE_OPTIONS = GENRE_OPTIONS;
+var BROWSE_TV_GENRE_OPTIONS = [
+  { id:10759, name:'Action & Adventure' },
+  { id:16, name:'Animation' },
+  { id:35, name:'Comedy' },
+  { id:80, name:'Crime' },
+  { id:99, name:'Documentary' },
+  { id:18, name:'Drama' },
+  { id:10751, name:'Family' },
+  { id:9648, name:'Mystery' },
+  { id:10749, name:'Romance' },
+  { id:10765, name:'Sci-Fi & Fantasy' }
+];
+var BROWSE_SORT_VOTE_MIN = { movie: 120, tv: 80 };
+var BROWSE_ACTIVE_YEARS = 14;
 var browseKey = null, browsePageNum = 1, browseItems = [], browseSort = 'default', browseFilters = ['all'];
+var browseGenreFilter = 'all', browseYearFilter = 'any', browseRatingFilter = 'any';
+
+function isBrowseDiscoverCategory(cat) {
+  return cat && !cat.curated && !cat.endpoint;
+}
+
+function getBrowseGenreOptions(type) {
+  return type === 'tv' ? BROWSE_TV_GENRE_OPTIONS : BROWSE_MOVIE_GENRE_OPTIONS;
+}
+
+function buildBrowseYearOptions(selectedYear) {
+  var currentYear = new Date().getUTCFullYear();
+  var minYear = currentYear - (BROWSE_ACTIVE_YEARS - 1);
+  var out = '<option value="any"' + (selectedYear === 'any' ? ' selected' : '') + '>Any year</option>';
+  for (var year = currentYear; year >= minYear; year--) {
+    out += '<option value="' + year + '"' + (Number(selectedYear) === year ? ' selected' : '') + '>' + year + '</option>';
+  }
+  return out;
+}
+
+function buildBrowseSelect(type, label, items) {
+  return '<div class="browse-filter">'
+    + '<select class="browse-filter-control" aria-label="' + label + '" data-browse-filter-type="' + type + '">'
+    + items.join('')
+    + '</select>'
+    + '</div>';
+}
 
 function getBrowseFilterState() {
   if (!Array.isArray(browseFilters) || !browseFilters.length) return ['all'];
@@ -6190,6 +6256,22 @@ function renderBrowseControls(cat) {
     filters.innerHTML = MIND_FILTERS.map(function(f) {
       return '<button class="bfilter'+(activeFilters.indexOf(f.key) > -1 ? ' active' : '')+'" type="button" data-browse-filter="'+f.key+'">'+f.label+'</button>';
     }).join('');
+    filters.classList.add('on');
+  } else if (isBrowseDiscoverCategory(cat)) {
+    var genreOptions = getBrowseGenreOptions(cat.type).map(function(item) {
+      return '<option value="' + item.id + '"' + (String(browseGenreFilter) === String(item.id) ? ' selected' : '') + '>' + item.name + '</option>';
+    });
+    genreOptions.unshift('<option value="all"' + (browseGenreFilter === 'all' ? ' selected' : '') + '>All genres</option>');
+    var yearOptions = buildBrowseYearOptions(browseYearFilter);
+    var ratingOptions = '<option value="any"' + (browseRatingFilter === 'any' ? ' selected' : '') + '>Any rating</option>'
+      + '<option value="6"' + (browseRatingFilter === '6' ? ' selected' : '') + '>6+</option>'
+      + '<option value="7"' + (browseRatingFilter === '7' ? ' selected' : '') + '>7+</option>'
+      + '<option value="8"' + (browseRatingFilter === '8' ? ' selected' : '') + '>8+</option>';
+    filters.innerHTML =
+      buildBrowseSelect('genre', 'Genre', genreOptions) +
+      buildBrowseSelect('year', 'Year', [yearOptions]) +
+      '<div class="browse-filter"><select class="browse-filter-control" aria-label="Rating" data-browse-filter-type="rating">' + ratingOptions + '</select></div>'
+      + '<div class="browse-filter"><button class="browse-filter-control" type="button" data-browse-filter-reset>Reset</button></div>';
     filters.classList.add('on');
   } else {
     filters.classList.remove('on');
@@ -6260,6 +6342,11 @@ function openBrowse(key) {
   browseFilters = browseKey === 'mind' ? ['all'] : [];
   var cat = browseCats[key];
   if (!cat) return;
+  if (isBrowseDiscoverCategory(cat)) {
+    browseGenreFilter = 'all';
+    browseYearFilter = 'any';
+    browseRatingFilter = 'any';
+  }
   document.getElementById('browseTitle').textContent = cat.title;
   setPageTitle(cat.title);
   renderBrowseControls(cat);
@@ -6311,6 +6398,20 @@ document.addEventListener('click', function(e) {
     closeBrowse();
   }
 });
+document.addEventListener('change', function(e) {
+  if (!e.target || !e.target.closest) return;
+  var select = e.target.closest('.browse-filter-control[data-browse-filter-type]');
+  if (!select) return;
+  var type = select.getAttribute('data-browse-filter-type');
+  setBrowseDiscoverFilter(type, select.value);
+});
+document.addEventListener('click', function(e) {
+  if (!e.target || !e.target.closest) return;
+  var resetBtn = e.target.closest('[data-browse-filter-reset]');
+  if (!resetBtn) return;
+  e.preventDefault();
+  resetBrowseDiscoverFilters();
+});
 
 function setBrowseFilter(filter) {
   if (browseKey !== 'mind' || !filter) return;
@@ -6329,6 +6430,51 @@ function setBrowseFilter(filter) {
   setBrowseSort(browseSort);
 }
 
+function resetBrowseGrid() {
+  browsePageNum = 1; browseItems = [];
+  var grid = document.getElementById('browseGrid');
+  if (grid) {
+    grid.innerHTML = '';
+    for (var i = 0; i < 18; i++) grid.insertAdjacentHTML('beforeend', '<div class="skel skel-card"></div>');
+  }
+  var btn = document.getElementById('browseMoreBtn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Load More'; btn.style.display = ''; }
+  var overlay = document.getElementById('browseOverlay');
+  if (overlay) overlay.scrollTop = 0;
+  loadBrowsePage();
+}
+
+function setBrowseDiscoverFilter(type, value) {
+  var cat = browseCats[browseKey];
+  if (!isBrowseDiscoverCategory(cat) || !type) return;
+  if (type === 'genre') browseGenreFilter = value || 'all';
+  else if (type === 'year') browseYearFilter = value || 'any';
+  else if (type === 'rating') browseRatingFilter = value || 'any';
+  renderBrowseControls(cat);
+  resetBrowseGrid();
+}
+
+function resetBrowseDiscoverFilters() {
+  var cat = browseCats[browseKey];
+  if (!isBrowseDiscoverCategory(cat)) return;
+  browseGenreFilter = 'all';
+  browseYearFilter = 'any';
+  browseRatingFilter = 'any';
+  renderBrowseControls(cat);
+  resetBrowseGrid();
+}
+
+function setBrowseRatingVoteFloor(path, minVotes) {
+  if (!path) return path;
+  var min = Number(minVotes) || 0;
+  if (!min) return path;
+  var match = /([?&]vote_count\.gte=)(\d+)/.exec(path);
+  if (!match) return path + '&vote_count.gte=' + min;
+  var current = Number(match[2]) || 0;
+  if (current >= min) return path;
+  return path.replace(match[0], match[1] + min);
+}
+
 function setBrowseSort(sort, btn) {
   if (!sort) sort = 'default';
   browseSort = sort;
@@ -6339,12 +6485,7 @@ function setBrowseSort(sort, btn) {
     var sortBtn = document.querySelector('.bsort[data-browse-sort="'+sort+'"]');
     if (sortBtn) sortBtn.classList.add('active');
   }
-  var grid = document.getElementById('browseGrid');
-  grid.innerHTML = '';
-  for (var i = 0; i < 18; i++) grid.insertAdjacentHTML('beforeend', '<div class="skel skel-card"></div>');
-  document.getElementById('browseMoreBtn').style.display = '';
-  document.getElementById('browseOverlay').scrollTop = 0;
-  loadBrowsePage();
+  resetBrowseGrid();
 }
 
 function browsePath(cat, page) {
@@ -6358,10 +6499,22 @@ function browsePath(cat, page) {
   if (browseSort === 'default') sortBy = cat.defaultSort || (cat.type === 'tv' ? 'first_air_date.desc' : 'primary_release_date.desc');
   else if (browseSort === 'newest') sortBy = (cat.type === 'tv' ? 'first_air_date.desc' : 'primary_release_date.desc');
   else if (browseSort === 'rating') sortBy = 'vote_average.desc';
-  else sortBy = browseSort; // popularity.desc
+  else if (browseSort === 'popular') sortBy = 'popularity.desc';
+  else sortBy = browseSort;
   var p = '/discover/' + cat.type + '?sort_by=' + sortBy;
   if (cat.params) p += '&' + cat.params;
-  if (browseSort === 'rating' && cat.params.indexOf('vote_count.gte') === -1) p += '&vote_count.gte=200';
+  if (isBrowseDiscoverCategory(cat)) {
+    if (browseGenreFilter && browseGenreFilter !== 'all') p += '&with_genres=' + browseGenreFilter;
+    if (browseYearFilter && browseYearFilter !== 'any') {
+      p += '&' + (cat.type === 'tv' ? 'first_air_date_year=' : 'primary_release_year=') + browseYearFilter;
+    }
+    if (browseRatingFilter && browseRatingFilter !== 'any') {
+      p += '&vote_average.gte=' + browseRatingFilter;
+      p = setBrowseRatingVoteFloor(p, BROWSE_SORT_VOTE_MIN[cat.type] || 80);
+    } else if (browseSort === 'rating') {
+      p = setBrowseRatingVoteFloor(p, BROWSE_SORT_VOTE_MIN[cat.type] || 80);
+    }
+  }
   if (sortBy.indexOf('date.desc') > -1) p += (cat.type === 'tv' ? '&first_air_date.lte=' : '&primary_release_date.lte=') + today;
   p += '&page=' + page;
   return p;
@@ -6585,7 +6738,7 @@ function openTVHubShow(id, title) {
   document.getElementById('tvHubEpGrid').innerHTML = '';
   tmdbFetch('/tv/' + id).then(function(d) {
     if (!d) return;
-    if (!isCatalogEligible(d, 'tv')) {
+    if (!isCatalogRecordValid(d, 'tv')) {
       tvHubBack();
       showToast('This title is not in Streamr’s released catalogue');
       return;
@@ -6808,7 +6961,7 @@ function openDetail(id, type, title) {
   var append = '?append_to_response=credits,videos,recommendations';
   tmdbFetch('/' + type + '/' + id + append).then(function(d) {
     if (!d) { closeDetail(); return; }
-    if (!isCatalogEligible(d, type)) {
+    if (!isCatalogRecordValid(d, type)) {
       closeDetail();
       showToast('This title is not in Streamr’s released catalogue');
       return;
