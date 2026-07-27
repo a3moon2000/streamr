@@ -3019,7 +3019,6 @@ function dropHidden(items, typeHint) {
   return items.filter(function(r){
     var type = r.media_type || r.type || typeHint || 'movie';
     if (!isCatalogEligible(r, typeHint)) return false;
-    if (isCamQuality(r)) return false;
     if (hiddenKeys.indexOf(titleKey(r.id, type)) > -1) return false;
     var g = r.genre_ids || (r.genres ? r.genres.map(function(x){return x.id;}) : []);
     return !g.some(function(id){ return HIDDEN_GENRES.indexOf(id) > -1; });
