@@ -3014,10 +3014,19 @@ function isTitleHidden(id, type) { return getHiddenKeys().indexOf(titleKey(id, t
 // TMDB is catalogue metadata, not proof that a title can be streamed. Keep only
 // released, well-formed movie/TV records in the client catalogue; playback
 // availability is deliberately not inferred from this check.
+function catalogTypeOf(v) {
+  return v === 'movie' || v === 'tv' ? v : null;
+}
 function isCatalogRecordValid(item, typeHint) {
   if (!item) return false;
   if (!Number.isInteger(Number(item.id)) || Number(item.id) <= 0) return false;
-  var type = item.media_type || item.type || typeHint;
+  var hintedType = catalogTypeOf(typeHint);
+  var declaredType = catalogTypeOf(item.media_type);
+  var genericType = catalogTypeOf(item.type);
+  if (declaredType && genericType && declaredType !== genericType) return false;
+  if (declaredType && hintedType && declaredType !== hintedType) return false;
+  if (genericType && hintedType && genericType !== hintedType) return false;
+  var type = declaredType || genericType || hintedType;
   if (type !== 'movie' && type !== 'tv') return false;
   var title = String(item.title || item.name || item.original_title || item.original_name || '').trim();
   if (!title) return false;
