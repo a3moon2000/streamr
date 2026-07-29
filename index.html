@@ -20,7 +20,9 @@
   <meta name="apple-mobile-web-app-title" content="Streamr">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://image.tmdb.org" crossorigin>
+  <link rel="preconnect" href="https://vidlux.online">
   <link rel="dns-prefetch" href="https://api.themoviedb.org">
+  <link rel="dns-prefetch" href="https://vidlux.online">
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -4083,7 +4085,7 @@ function loadPlayerLegacyEmbed(id, type, s, e, progress, title) {
   iframe.setAttribute('loading', 'eager');
   iframe.addEventListener('load', function() {
     schedulePlayerUnmute();
-    setTimeout(revealPlayerEmbed, 700);
+    requestAnimationFrame(revealPlayerEmbed);
   });
   inner.appendChild(iframe);
   unmutePlayerIframe();
